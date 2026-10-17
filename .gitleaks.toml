@@ -1,0 +1,10 @@
+# gitleaks: the default rules, plus the few matches that are test fixtures or public identifiers, not secrets
+[extend]
+useDefault = true
+
+[allowlist]
+description = "test fixtures and public identifiers"
+regexes = [
+  '''synthea-v4\.0\.0''',  # actions/cache key name
+  '''registry-password''',  # name of a Container Apps secret, not its value
+]
