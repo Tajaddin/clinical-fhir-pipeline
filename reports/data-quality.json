@@ -1,0 +1,288 @@
+{
+  "ran_at": "2026-10-17T15:18:58.175476",
+  "checks": 25,
+  "passed": 22,
+  "critical_failures": [],
+  "warnings": [
+    "systolic blood pressure within 50-260",
+    "HbA1c within 3-20",
+    "no encounters after death"
+  ],
+  "results": [
+    {
+      "check_name": "patients.patient_id unique",
+      "table_name": "patients",
+      "severity": "critical",
+      "description": "one row per patient",
+      "failing": 0,
+      "total": 2263,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "patients.sex is a known value",
+      "table_name": "patients",
+      "severity": "critical",
+      "description": "administrative sex is one of the FHIR codes",
+      "failing": 0,
+      "total": 2263,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "patients.age_years within 0-90",
+      "table_name": "patients",
+      "severity": "critical",
+      "description": "ages are present and capped at 90 by de-identification",
+      "failing": 0,
+      "total": 2263,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "patients have no birth year over 89",
+      "table_name": "patients",
+      "severity": "critical",
+      "description": "Safe Harbor: no birth year for anyone 90 or older",
+      "failing": 0,
+      "total": 91,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "encounters.patient_id resolves",
+      "table_name": "encounters",
+      "severity": "critical",
+      "description": "every encounters.patient_id points at an existing patients row",
+      "failing": 0,
+      "total": 132888,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "conditions.patient_id resolves",
+      "table_name": "conditions",
+      "severity": "critical",
+      "description": "every conditions.patient_id points at an existing patients row",
+      "failing": 0,
+      "total": 77819,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "observations.patient_id resolves",
+      "table_name": "observations",
+      "severity": "critical",
+      "description": "every observations.patient_id points at an existing patients row",
+      "failing": 0,
+      "total": 1657899,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "medication_requests.patient_id resolves",
+      "table_name": "medication_requests",
+      "severity": "critical",
+      "description": "every medication_requests.patient_id points at an existing patients row",
+      "failing": 0,
+      "total": 107991,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "conditions.encounter_id resolves",
+      "table_name": "conditions",
+      "severity": "warning",
+      "description": "every conditions.encounter_id points at an existing encounters row",
+      "failing": 0,
+      "total": 77819,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "observations.encounter_id resolves",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "every observations.encounter_id points at an existing encounters row",
+      "failing": 0,
+      "total": 1657899,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "medication_requests.encounter_id resolves",
+      "table_name": "medication_requests",
+      "severity": "warning",
+      "description": "every medication_requests.encounter_id points at an existing encounters row",
+      "failing": 0,
+      "total": 107991,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "procedures.encounter_id resolves",
+      "table_name": "procedures",
+      "severity": "warning",
+      "description": "every procedures.encounter_id points at an existing encounters row",
+      "failing": 0,
+      "total": 280897,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "encounters end after they start",
+      "table_name": "encounters",
+      "severity": "critical",
+      "description": "no negative lengths of stay",
+      "failing": 0,
+      "total": 132888,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "encounters have a start",
+      "table_name": "encounters",
+      "severity": "critical",
+      "description": "every encounter is dated",
+      "failing": 0,
+      "total": 132888,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "encounters.class_code is known",
+      "table_name": "encounters",
+      "severity": "warning",
+      "description": "ActCode encounter classes only",
+      "failing": 0,
+      "total": 132888,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "conditions have a code and a display",
+      "table_name": "conditions",
+      "severity": "critical",
+      "description": "coded problems",
+      "failing": 0,
+      "total": 77819,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "conditions resolve after onset",
+      "table_name": "conditions",
+      "severity": "warning",
+      "description": "abatement never precedes onset",
+      "failing": 0,
+      "total": 57594,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "medication requests have a display",
+      "table_name": "medication_requests",
+      "severity": "critical",
+      "description": "named medications",
+      "failing": 0,
+      "total": 107991,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "observations have a value",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "every leaf observation carries a numeric or coded value",
+      "failing": 0,
+      "total": 1139237,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "BMI within 8-100",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "BMI (LOINC 39156-5) values are physiologically plausible",
+      "failing": 0,
+      "total": 27004,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "systolic blood pressure within 50-260",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "systolic blood pressure (LOINC 8480-6) values are physiologically plausible",
+      "failing": 2,
+      "total": 31503,
+      "failing_share": 6.3e-05,
+      "passed": false,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "diastolic blood pressure within 20-160",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "diastolic blood pressure (LOINC 8462-4) values are physiologically plausible",
+      "failing": 0,
+      "total": 31503,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "heart rate within 20-250",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "heart rate (LOINC 8867-4) values are physiologically plausible",
+      "failing": 0,
+      "total": 30360,
+      "failing_share": 0.0,
+      "passed": true,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "HbA1c within 3-20",
+      "table_name": "observations",
+      "severity": "warning",
+      "description": "HbA1c (LOINC 4548-4) values are physiologically plausible",
+      "failing": 2463,
+      "total": 17480,
+      "failing_share": 0.140904,
+      "passed": false,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    },
+    {
+      "check_name": "no encounters after death",
+      "table_name": "encounters",
+      "severity": "warning",
+      "description": "deceased patients stop having encounters",
+      "failing": 219,
+      "total": 40588,
+      "failing_share": 0.005396,
+      "passed": false,
+      "ran_at": "2026-10-17T15:18:58.175476"
+    }
+  ]
+}

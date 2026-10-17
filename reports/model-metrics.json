@@ -1,0 +1,658 @@
+{
+  "model_version": "readmission-v1",
+  "trained_at": "2026-10-17T15:19:17+00:00",
+  "cohort": {
+    "admissions_total": 2960,
+    "admissions_modeled": 2932,
+    "patients_modeled": 1141,
+    "excluded_died": 25,
+    "excluded_censored": 3,
+    "prevalence": 0.1548431105047749,
+    "train": 1892,
+    "val": 405,
+    "test": 635,
+    "test_patients": 229,
+    "label_hash": "a03ecb36f093"
+  },
+  "features": [
+    "age_at_admission",
+    "los_days",
+    "prior_admissions_365d",
+    "prior_admissions_all",
+    "prior_ed_visits_365d",
+    "prior_ambulatory_365d",
+    "days_since_last_discharge",
+    "n_active_conditions",
+    "n_medications_365d",
+    "n_conditions_in_stay",
+    "n_procedures_in_stay",
+    "n_medications_in_stay",
+    "bmi",
+    "systolic_bp",
+    "diastolic_bp",
+    "heart_rate",
+    "hba1c",
+    "glucose",
+    "creatinine",
+    "hemoglobin",
+    "ldl",
+    "egfr",
+    "has_diabetes",
+    "has_prediabetes",
+    "has_hypertension",
+    "has_heart_failure",
+    "has_copd",
+    "has_ckd",
+    "has_cancer",
+    "has_dementia",
+    "has_stroke",
+    "has_coronary",
+    "has_atrial_fibrillation",
+    "has_asthma",
+    "has_depression",
+    "has_obesity",
+    "has_substance_use",
+    "sex_female",
+    "reason__non_small_cell_carcinoma_of_lung__tnm_st",
+    "reason__patient_transfer_to_skilled_nursing_faci",
+    "reason__dependent_drug_abuse__disorder",
+    "reason__sterilization_requested__situation",
+    "reason__primary_small_cell_malignant_neoplasm_of",
+    "reason__appendicitis__disorder",
+    "reason__history_of_coronary_artery_bypass_grafti",
+    "reason__sleep_disorder__disorder",
+    "reason__awaiting_transplantation_of_kidney__situ",
+    "reason__abnormal_findings_diagnostic_imaging_hea"
+  ],
+  "threshold": 0.3,
+  "champion": "xgboost",
+  "models": {
+    "logistic_regression": {
+      "validation": {
+        "auroc": 0.8413781242834213
+      },
+      "test_uncalibrated": {
+        "n": 635,
+        "positives": 81,
+        "prevalence": 0.12755905511811025,
+        "auroc": 0.8023799973258456,
+        "auroc_ci95": [
+          0.7571966962239278,
+          0.8447601903158548
+        ],
+        "auprc": 0.33057686152696725,
+        "brier": 0.09897774080556944,
+        "log_loss": 0.31184627787779245,
+        "ece": 0.03930330844190082,
+        "calibration_slope": 0.7395640898383166,
+        "calibration_intercept": -0.46355191321269573,
+        "reliability": [
+          {
+            "bin": 0,
+            "lower": 0.0,
+            "upper": 0.1,
+            "mean_predicted": 0.021033650502143623,
+            "observed": 0.021505376344086023,
+            "n": 372
+          },
+          {
+            "bin": 1,
+            "lower": 0.1,
+            "upper": 0.2,
+            "mean_predicted": 0.15204864602775092,
+            "observed": 0.27450980392156865,
+            "n": 51
+          },
+          {
+            "bin": 2,
+            "lower": 0.2,
+            "upper": 0.30000000000000004,
+            "mean_predicted": 0.2518321304796939,
+            "observed": 0.2602739726027397,
+            "n": 73
+          },
+          {
+            "bin": 3,
+            "lower": 0.30000000000000004,
+            "upper": 0.4,
+            "mean_predicted": 0.34841401449005516,
+            "observed": 0.2898550724637681,
+            "n": 69
+          },
+          {
+            "bin": 4,
+            "lower": 0.4,
+            "upper": 0.5,
+            "mean_predicted": 0.44477952294438117,
+            "observed": 0.22641509433962265,
+            "n": 53
+          },
+          {
+            "bin": 5,
+            "lower": 0.5,
+            "upper": 0.6000000000000001,
+            "mean_predicted": 0.5386914628414089,
+            "observed": 0.45454545454545453,
+            "n": 11
+          },
+          {
+            "bin": 6,
+            "lower": 0.6000000000000001,
+            "upper": 0.7000000000000001,
+            "mean_predicted": 0.6418926128231748,
+            "observed": 0.4,
+            "n": 5
+          },
+          {
+            "bin": 8,
+            "lower": 0.8,
+            "upper": 0.9,
+            "mean_predicted": 0.8286055513999842,
+            "observed": 1.0,
+            "n": 1
+          }
+        ]
+      },
+      "test": {
+        "n": 635,
+        "positives": 81,
+        "prevalence": 0.12755905511811025,
+        "auroc": 0.7982127735437001,
+        "auroc_ci95": [
+          0.7541306861195307,
+          0.8386362511812896
+        ],
+        "auprc": 0.28623016629631226,
+        "brier": 0.09542128607365694,
+        "log_loss": 0.34015661248924556,
+        "ece": 0.03140571572932295,
+        "calibration_slope": 0.31892066128633506,
+        "calibration_intercept": -0.8417044888093704,
+        "reliability": [
+          {
+            "bin": 0,
+            "lower": 0.0,
+            "upper": 0.1,
+            "mean_predicted": 0.011431070087919408,
+            "observed": 0.016483516483516484,
+            "n": 364
+          },
+          {
+            "bin": 1,
+            "lower": 0.1,
+            "upper": 0.2,
+            "mean_predicted": 0.13133269982884477,
+            "observed": 0.17857142857142858,
+            "n": 28
+          },
+          {
+            "bin": 2,
+            "lower": 0.2,
+            "upper": 0.30000000000000004,
+            "mean_predicted": 0.2523929386601128,
+            "observed": 0.3548387096774194,
+            "n": 31
+          },
+          {
+            "bin": 3,
+            "lower": 0.30000000000000004,
+            "upper": 0.4,
+            "mean_predicted": 0.33790985755653713,
+            "observed": 0.27488151658767773,
+            "n": 211
+          },
+          {
+            "bin": 6,
+            "lower": 0.6000000000000001,
+            "upper": 0.7000000000000001,
+            "mean_predicted": 0.6939442506354468,
+            "observed": 1.0,
+            "n": 1
+          }
+        ]
+      }
+    },
+    "xgboost": {
+      "validation": {
+        "auroc": 0.8936597110754415
+      },
+      "test_uncalibrated": {
+        "n": 635,
+        "positives": 81,
+        "prevalence": 0.12755905511811025,
+        "auroc": 0.849311405268084,
+        "auroc_ci95": [
+          0.8114555165297558,
+          0.8854682769279543
+        ],
+        "auprc": 0.49490959683755326,
+        "brier": 0.08666957169771194,
+        "log_loss": 0.27974095940589905,
+        "ece": 0.027564512768129663,
+        "calibration_slope": 0.9062328934669495,
+        "calibration_intercept": -0.12477853894233704,
+        "reliability": [
+          {
+            "bin": 0,
+            "lower": 0.0,
+            "upper": 0.1,
+            "mean_predicted": 0.019995182752609253,
+            "observed": 0.02577319587628866,
+            "n": 388
+          },
+          {
+            "bin": 1,
+            "lower": 0.1,
+            "upper": 0.2,
+            "mean_predicted": 0.15391427278518677,
+            "observed": 0.19736842105263158,
+            "n": 76
+          },
+          {
+            "bin": 2,
+            "lower": 0.2,
+            "upper": 0.30000000000000004,
+            "mean_predicted": 0.2471916824579239,
+            "observed": 0.2535211267605634,
+            "n": 71
+          },
+          {
+            "bin": 3,
+            "lower": 0.30000000000000004,
+            "upper": 0.4,
+            "mean_predicted": 0.3498353064060211,
+            "observed": 0.22,
+            "n": 50
+          },
+          {
+            "bin": 4,
+            "lower": 0.4,
+            "upper": 0.5,
+            "mean_predicted": 0.4354856014251709,
+            "observed": 0.44,
+            "n": 25
+          },
+          {
+            "bin": 5,
+            "lower": 0.5,
+            "upper": 0.6000000000000001,
+            "mean_predicted": 0.5398611426353455,
+            "observed": 0.4,
+            "n": 10
+          },
+          {
+            "bin": 6,
+            "lower": 0.6000000000000001,
+            "upper": 0.7000000000000001,
+            "mean_predicted": 0.6396850347518921,
+            "observed": 0.4,
+            "n": 5
+          },
+          {
+            "bin": 7,
+            "lower": 0.7000000000000001,
+            "upper": 0.8,
+            "mean_predicted": 0.7457753419876099,
+            "observed": 1.0,
+            "n": 8
+          },
+          {
+            "bin": 8,
+            "lower": 0.8,
+            "upper": 0.9,
+            "mean_predicted": 0.8628842234611511,
+            "observed": 1.0,
+            "n": 2
+          }
+        ]
+      },
+      "test": {
+        "n": 635,
+        "positives": 81,
+        "prevalence": 0.12755905511811025,
+        "auroc": 0.8324308062575211,
+        "auroc_ci95": [
+          0.7850700812440315,
+          0.8720701839162392
+        ],
+        "auprc": 0.4367633442118868,
+        "brier": 0.08776528388261795,
+        "log_loss": 0.35367050766944885,
+        "ece": 0.040306058033244815,
+        "calibration_slope": 0.2687297761440277,
+        "calibration_intercept": -0.9047563672065735,
+        "reliability": [
+          {
+            "bin": 0,
+            "lower": 0.0,
+            "upper": 0.1,
+            "mean_predicted": 0.012795807793736458,
+            "observed": 0.03365384615384615,
+            "n": 416
+          },
+          {
+            "bin": 1,
+            "lower": 0.1,
+            "upper": 0.2,
+            "mean_predicted": 0.14816150069236755,
+            "observed": 0.5,
+            "n": 2
+          },
+          {
+            "bin": 2,
+            "lower": 0.2,
+            "upper": 0.30000000000000004,
+            "mean_predicted": 0.2916666567325592,
+            "observed": 0.21505376344086022,
+            "n": 93
+          },
+          {
+            "bin": 3,
+            "lower": 0.30000000000000004,
+            "upper": 0.4,
+            "mean_predicted": 0.37723806500434875,
+            "observed": 0.3113207547169811,
+            "n": 106
+          },
+          {
+            "bin": 5,
+            "lower": 0.5,
+            "upper": 0.6000000000000001,
+            "mean_predicted": 0.5060828328132629,
+            "observed": 0.3333333333333333,
+            "n": 3
+          },
+          {
+            "bin": 6,
+            "lower": 0.6000000000000001,
+            "upper": 0.7000000000000001,
+            "mean_predicted": 0.6666666865348816,
+            "observed": 0.0,
+            "n": 2
+          },
+          {
+            "bin": 7,
+            "lower": 0.7000000000000001,
+            "upper": 0.8,
+            "mean_predicted": 0.749970018863678,
+            "observed": 0.6666666666666666,
+            "n": 3
+          },
+          {
+            "bin": 9,
+            "lower": 0.9,
+            "upper": 1.0,
+            "mean_predicted": 1.0,
+            "observed": 1.0,
+            "n": 10
+          }
+        ]
+      }
+    }
+  },
+  "fairness": {
+    "sex": [
+      {
+        "group": "male",
+        "n": 318,
+        "prevalence": 0.12578616352201258,
+        "mean_predicted": 0.1401226669549942,
+        "selection_rate": 0.1761006289308176,
+        "auroc": 0.822841726618705,
+        "calibration_in_the_large": 0.014336503432981623,
+        "tpr": 0.475,
+        "fpr": 0.13309352517985612
+      },
+      {
+        "group": "female",
+        "n": 317,
+        "prevalence": 0.12933753943217666,
+        "mean_predicted": 0.13651135563850403,
+        "selection_rate": 0.21451104100946372,
+        "auroc": 0.8379285966772712,
+        "calibration_in_the_large": 0.007173816206327371,
+        "tpr": 0.6585365853658537,
+        "fpr": 0.14855072463768115
+      }
+    ],
+    "age_band": [
+      {
+        "group": "40-64",
+        "n": 365,
+        "prevalence": 0.18356164383561643,
+        "mean_predicted": 0.21309922635555267,
+        "selection_rate": 0.32054794520547947,
+        "auroc": 0.7376790543924673,
+        "calibration_in_the_large": 0.02953758251993624,
+        "tpr": 0.5970149253731343,
+        "fpr": 0.25838926174496646
+      },
+      {
+        "group": "18-39",
+        "n": 138,
+        "prevalence": 0.036231884057971016,
+        "mean_predicted": 0.01936894841492176,
+        "selection_rate": 0.014492753623188406,
+        "auroc": 0.881954887218045,
+        "calibration_in_the_large": -0.016862935643049255,
+        "tpr": 0.4,
+        "fpr": 0.0
+      },
+      {
+        "group": "0-17",
+        "n": 75,
+        "prevalence": 0.04,
+        "mean_predicted": 0.011834673583507538,
+        "selection_rate": 0.0,
+        "auroc": 0.9976851851851851,
+        "calibration_in_the_large": -0.028165326416492463,
+        "tpr": 0.0,
+        "fpr": 0.0
+      },
+      {
+        "group": "65-89",
+        "n": 57,
+        "prevalence": 0.10526315789473684,
+        "mean_predicted": 0.11388389021158218,
+        "selection_rate": 0.08771929824561403,
+        "auroc": 0.8235294117647058,
+        "calibration_in_the_large": 0.008620732316845348,
+        "tpr": 0.6666666666666666,
+        "fpr": 0.0196078431372549
+      }
+    ],
+    "race": [
+      {
+        "group": "unknown",
+        "n": 635,
+        "prevalence": 0.12755905511811025,
+        "mean_predicted": 0.13831986486911774,
+        "selection_rate": 0.1952755905511811,
+        "auroc": 0.8324308062575211,
+        "calibration_in_the_large": 0.010760809751007488,
+        "tpr": 0.5679012345679012,
+        "fpr": 0.1407942238267148
+      }
+    ],
+    "ethnicity": [
+      {
+        "group": "unknown",
+        "n": 635,
+        "prevalence": 0.12755905511811025,
+        "mean_predicted": 0.13831986486911774,
+        "selection_rate": 0.1952755905511811,
+        "auroc": 0.8324308062575211,
+        "calibration_in_the_large": 0.010760809751007488,
+        "tpr": 0.5679012345679012,
+        "fpr": 0.1407942238267148
+      }
+    ]
+  },
+  "explanations": {
+    "xgboost_mean_abs_shap": [
+      {
+        "feature": "n_procedures_in_stay",
+        "mean_abs_shap": 0.5040314793586731
+      },
+      {
+        "feature": "days_since_last_discharge",
+        "mean_abs_shap": 0.46189412474632263
+      },
+      {
+        "feature": "n_medications_365d",
+        "mean_abs_shap": 0.44351816177368164
+      },
+      {
+        "feature": "los_days",
+        "mean_abs_shap": 0.25809577107429504
+      },
+      {
+        "feature": "reason__primary_small_cell_malignant_neoplasm_of",
+        "mean_abs_shap": 0.25224944949150085
+      },
+      {
+        "feature": "n_medications_in_stay",
+        "mean_abs_shap": 0.24564073979854584
+      },
+      {
+        "feature": "glucose",
+        "mean_abs_shap": 0.1358116865158081
+      },
+      {
+        "feature": "egfr",
+        "mean_abs_shap": 0.13249768316745758
+      },
+      {
+        "feature": "prior_ambulatory_365d",
+        "mean_abs_shap": 0.13148446381092072
+      },
+      {
+        "feature": "prior_ed_visits_365d",
+        "mean_abs_shap": 0.1313554346561432
+      },
+      {
+        "feature": "reason__patient_transfer_to_skilled_nursing_faci",
+        "mean_abs_shap": 0.12948758900165558
+      },
+      {
+        "feature": "hemoglobin",
+        "mean_abs_shap": 0.11471831798553467
+      },
+      {
+        "feature": "n_active_conditions",
+        "mean_abs_shap": 0.10685081034898758
+      },
+      {
+        "feature": "age_at_admission",
+        "mean_abs_shap": 0.10416118055582047
+      },
+      {
+        "feature": "n_conditions_in_stay",
+        "mean_abs_shap": 0.10251020640134811
+      },
+      {
+        "feature": "creatinine",
+        "mean_abs_shap": 0.10103803873062134
+      },
+      {
+        "feature": "bmi",
+        "mean_abs_shap": 0.09540621191263199
+      },
+      {
+        "feature": "reason__history_of_coronary_artery_bypass_grafti",
+        "mean_abs_shap": 0.09024875611066818
+      },
+      {
+        "feature": "systolic_bp",
+        "mean_abs_shap": 0.07859273254871368
+      },
+      {
+        "feature": "hba1c",
+        "mean_abs_shap": 0.07435633987188339
+      }
+    ],
+    "logistic_regression_coefficients": [
+      {
+        "feature": "reason__primary_small_cell_malignant_neoplasm_of",
+        "coefficient": 1.0431366746432669
+      },
+      {
+        "feature": "reason__patient_transfer_to_skilled_nursing_faci",
+        "coefficient": -1.0259745375517166
+      },
+      {
+        "feature": "reason__dependent_drug_abuse__disorder",
+        "coefficient": -0.8905828584540192
+      },
+      {
+        "feature": "n_active_conditions",
+        "coefficient": 0.6654732072092013
+      },
+      {
+        "feature": "prior_admissions_365d",
+        "coefficient": 0.5636522089153694
+      },
+      {
+        "feature": "n_procedures_in_stay",
+        "coefficient": 0.5161885549304748
+      },
+      {
+        "feature": "reason__awaiting_transplantation_of_kidney__situ",
+        "coefficient": -0.4964564264627196
+      },
+      {
+        "feature": "missingindicator_bmi",
+        "coefficient": 0.47571908406012353
+      },
+      {
+        "feature": "reason__appendicitis__disorder",
+        "coefficient": -0.4755103217022627
+      },
+      {
+        "feature": "reason__sleep_disorder__disorder",
+        "coefficient": -0.4604736779558201
+      },
+      {
+        "feature": "reason__history_of_coronary_artery_bypass_grafti",
+        "coefficient": 0.4073940217046275
+      },
+      {
+        "feature": "n_conditions_in_stay",
+        "coefficient": -0.35508988709243045
+      },
+      {
+        "feature": "prior_admissions_all",
+        "coefficient": -0.3490831212827581
+      },
+      {
+        "feature": "has_ckd",
+        "coefficient": -0.3430713427487821
+      },
+      {
+        "feature": "missingindicator_systolic_bp",
+        "coefficient": -0.3263165420399903
+      },
+      {
+        "feature": "missingindicator_diastolic_bp",
+        "coefficient": -0.3263165420399903
+      },
+      {
+        "feature": "missingindicator_heart_rate",
+        "coefficient": -0.3263165420399903
+      },
+      {
+        "feature": "prior_ambulatory_365d",
+        "coefficient": -0.2746738396210906
+      },
+      {
+        "feature": "has_coronary",
+        "coefficient": -0.27339438010021133
+      },
+      {
+        "feature": "missingindicator_glucose",
+        "coefficient": 0.27172502265736853
+      }
+    ]
+  },
+  "xgboost_best_iteration": 297
+}
