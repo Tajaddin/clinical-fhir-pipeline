@@ -18,6 +18,7 @@ scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing i
 - **Readmission model** (2,932 admissions from 1,141 patients, 15.5% readmitted within 30 days; patient-level split, 635 held-out admissions from 229 patients): champion **xgboost** with held-out **AUROC 0.832** (95% bootstrap CI 0.785 to 0.872), AUPRC 0.437, Brier 0.088, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.028); logistic_regression AUROC 0.798, ECE 0.031.
 - **Fairness (held-out):** AUROC female 0.838 vs male 0.823; selection rate at the 30% threshold female 21.5% vs male 17.6%. Age bands and race are in the model card.
 - **Summary faithfulness** (qwen2.5:3b, bm25+recency, one model call per section, 40 patients, 1059 claims, 26.48 per summary, coverage 90.7% of the facts shown): **98.3% of claims supported** by the resource they cite; unsupported 18, missing citation 0, unknown citation 0, invented citation keys dropped 15; median generation 17.75 s per patient on the local GPU.
+- **Same eval with qwen2.5:7b:** 97.5% of 1257 claims supported (unsupported 29, missing citation 3), coverage 92.8%, median 36.16 s per patient. The checker is the same; the model is what changes.
 - **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 473 claims.
 <!-- /RESULTS -->
 

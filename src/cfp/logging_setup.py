@@ -10,6 +10,19 @@ import structlog
 
 def configure_logging(level: str = "INFO", service: str = "cfp") -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper())
+    # Third-party request logs are noise at INFO; errors still come through.
+    for noisy in (
+        "httpx",
+        "httpcore",
+        "opensearch",
+        "urllib3",
+        "huggingface_hub",
+        "sentence_transformers",
+        "transformers",
+        "filelock",
+        "uvicorn.access",
+    ):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

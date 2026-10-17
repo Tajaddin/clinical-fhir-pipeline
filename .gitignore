@@ -15,10 +15,9 @@ build/
 .env.*
 !.env.example
 
-# Synthea jar and everything it generates; the lakehouse it feeds
+# Synthea jar and everything it generates, the lakehouse it feeds, fixtures and scratch evals
 .synthea/
-data/synthea/
-data/lakehouse/
+data/
 
 mlruns/
 mlflow.db
