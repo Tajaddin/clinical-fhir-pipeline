@@ -42,7 +42,7 @@
     "angular-eslint": "^20.7.0",
     "eslint": "^9.39.1",
     "prettier": "^3.9.10",
-    "typescript": "~5.9.2",
+    "typescript": "~7.0.2",
     "typescript-eslint": "^8.46.4"
   }
 }
