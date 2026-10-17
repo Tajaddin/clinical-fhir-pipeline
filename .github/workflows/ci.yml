@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: "21" }
       - uses: actions/cache@v4
         with: { path: .synthea, key: synthea-v4.0.0 }
