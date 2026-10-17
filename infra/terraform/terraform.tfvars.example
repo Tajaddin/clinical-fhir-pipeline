@@ -1,0 +1,11 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+api_image       = "ghcr.io/tajaddin/clinical-fhir-pipeline/api:latest"
+# Private GHCR image: a token with read:packages
+registry_server   = "ghcr.io"
+registry_username = "tajaddin"
+registry_password = "ghp_..."
+api_keys          = "replace-with-a-long-random-analyst-key:analyst,replace-with-a-long-random-admin-key:admin"
+deid_salt         = "the same CFP_DEID_SALT the pipeline used"
+# Summaries: point at any OpenAI-compatible endpoint, or leave empty for the deterministic fake model
+llm_base_url = ""
+llm_model    = "qwen2.5:3b"

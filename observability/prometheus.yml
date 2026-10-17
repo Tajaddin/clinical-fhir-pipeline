@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: cfp-api
+    static_configs:
+      - targets: ["api:8000"]
+        labels: { service: cfp-api, env: local }
+  # The API started with `cfp serve` on the host instead of the container
+  - job_name: cfp-api-host
+    static_configs:
+      - targets: ["host.docker.internal:8110"]
+        labels: { service: cfp-api, env: host }

@@ -1,0 +1,46 @@
+<header class="top">
+  <div class="brand">
+    <h1>Clinical FHIR pipeline</h1>
+    <span class="health" data-testid="health">{{ health() }}</span>
+  </div>
+  <nav>
+    <a
+      routerLink="/"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+      data-testid="nav-cohort"
+      >Cohort</a
+    >
+    <a routerLink="/patients" routerLinkActive="active" data-testid="nav-patients">Patients</a>
+    <a routerLink="/model" routerLinkActive="active" data-testid="nav-model">Model card</a>
+    <a routerLink="/audit" routerLinkActive="active" data-testid="nav-audit">Audit log</a>
+  </nav>
+  <form class="key" (submit)="saveKey(); $event.preventDefault()">
+    <label>
+      API key
+      <input
+        type="password"
+        [value]="keyDraft()"
+        (input)="keyDraft.set($any($event.target).value)"
+        placeholder="paste your key"
+        data-testid="api-key"
+      />
+    </label>
+    <label>
+      Purpose
+      <select [value]="api.purpose()" (change)="onPurpose($event)" data-testid="purpose">
+        <option value="treatment">treatment</option>
+        <option value="operations">operations</option>
+        <option value="research">research</option>
+      </select>
+    </label>
+    <button type="submit" data-testid="save-key">Use key</button>
+  </form>
+</header>
+<main>
+  <router-outlet />
+</main>
+<footer>
+  Synthetic patients only (Synthea). Dates are shifted per patient; names and identifiers never
+  leave bronze.
+</footer>

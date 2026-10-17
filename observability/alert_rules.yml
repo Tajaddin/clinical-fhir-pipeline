@@ -1,0 +1,58 @@
+groups:
+  - name: cfp-api
+    rules:
+      - alert: ApiDown
+        expr: up{job=~"cfp-api.*"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "cfp API is not being scraped"
+          description: "No scrape from {{ $labels.instance }} for 2 minutes."
+
+      - alert: AuditLogWriteFailures
+        expr: increase(audit_write_failures_total[5m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "patient-data requests are being refused because the audit store is down"
+          description: "{{ $value | printf \"%.0f\" }} audit rows failed to write in 5 minutes. The API refuses those requests (503); the store needs attention."
+
+      - alert: ApiErrorRateHigh
+        expr: |
+          sum(rate(http_request_duration_seconds_count{status=~"5.."}[10m]))
+            / sum(rate(http_request_duration_seconds_count[10m])) > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "more than 5% of requests fail"
+          description: "5xx share over 10 minutes is {{ $value | humanizePercentage }}."
+
+      - alert: ApiLatencyP99High
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{route!~"/patients/\\{patient_id\\}/summary|/metrics"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "p99 latency above 500 ms (summaries excluded)"
+          description: "p99 over 5 minutes is {{ $value | humanizeDuration }}."
+
+      - alert: SummaryFaithfulnessLow
+        expr: summary_faithfulness_rate{source="live"} < 0.9
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "live summaries fall below 90% supported claims"
+          description: "Last live faithfulness rate {{ $value | humanizePercentage }}. Check the model, the prompt version and the retrieval settings."
+
+      - alert: SummaryModelFailing
+        expr: increase(llm_failures_total[15m]) > 3
+        labels: { severity: warning }
+        annotations:
+          summary: "the summary model is failing"
+          description: "{{ $value | printf \"%.0f\" }} summary generations raised in 15 minutes."
+
+      - alert: AuthDeniedSpike
+        expr: increase(auth_denied_total[5m]) > 20
+        labels: { severity: warning }
+        annotations:
+          summary: "many requests denied in 5 minutes"
+          description: "{{ $value | printf \"%.0f\" }} 401/403 responses; look at the audit log for the actors."

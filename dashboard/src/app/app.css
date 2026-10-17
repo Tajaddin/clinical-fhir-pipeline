@@ -1,0 +1,56 @@
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 2rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.brand h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.health {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+nav {
+  display: flex;
+  gap: 0.25rem;
+}
+nav a {
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--ink);
+}
+nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.key {
+  margin-left: auto;
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
+  font-size: 0.8rem;
+}
+.key label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--muted);
+}
+main {
+  padding: 1.25rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+footer {
+  padding: 1rem 1.25rem 2rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}

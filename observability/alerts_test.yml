@@ -1,0 +1,45 @@
+rule_files:
+  - alert_rules.yml
+
+evaluation_interval: 15s
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'audit_write_failures_total{job="cfp-api"}'
+        values: "0 0 0 2 2 2 2"
+      - series: 'summary_faithfulness_rate{source="live",job="cfp-api"}'
+        values: "0.97 0.97 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85 0.85"
+      - series: 'up{job="cfp-api",instance="api:8000"}'
+        values: "1 1 0 0 0 0 0"
+      - series: 'llm_failures_total{job="cfp-api"}'
+        values: "0 0 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: AuditLogWriteFailures
+        exp_alerts:
+          - exp_labels: { severity: critical, job: cfp-api }
+            exp_annotations:
+              summary: "patient-data requests are being refused because the audit store is down"
+              description: "2 audit rows failed to write in 5 minutes. The API refuses those requests (503); the store needs attention."
+      - eval_time: 18m
+        alertname: SummaryFaithfulnessLow
+        exp_alerts:
+          - exp_labels: { severity: warning, source: live, job: cfp-api }
+            exp_annotations:
+              summary: "live summaries fall below 90% supported claims"
+              description: "Last live faithfulness rate 85%. Check the model, the prompt version and the retrieval settings."
+      - eval_time: 5m
+        alertname: ApiDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: cfp-api, instance: "api:8000" }
+            exp_annotations:
+              summary: "cfp API is not being scraped"
+              description: "No scrape from api:8000 for 2 minutes."
+      # one failure in 15 minutes is below the threshold
+      - eval_time: 6m
+        alertname: SummaryModelFailing
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: AuditLogWriteFailures
+        exp_alerts: []

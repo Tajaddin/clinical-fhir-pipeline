@@ -1,0 +1,4 @@
+#!/bin/sh
+# Sourced by the nginx image's entrypoint before the templates are rendered: the DNS server the container
+# itself uses (Docker's embedded DNS in Compose, the cluster DNS on Kubernetes) becomes nginx's resolver.
+export DNS_RESOLVER="${DNS_RESOLVER:-$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf)}"

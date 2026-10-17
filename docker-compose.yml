@@ -1,0 +1,104 @@
+name: cfp
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cfp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cfp}
+      POSTGRES_DB: cfp
+    ports: ["${POSTGRES_PORT:-5437}:5432"]
+    volumes: [pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cfp -d cfp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    image: cfp/api:local
+    environment:
+      CFP_DATABASE_URL: postgresql+psycopg://cfp:${POSTGRES_PASSWORD:-cfp}@postgres:5432/cfp
+      CFP_LAKEHOUSE_ROOT: /data/lakehouse
+      CFP_REPORTS_DIR: /app/reports
+      CFP_API_KEYS: ${CFP_API_KEYS:-local-analyst-key:analyst,local-admin-key:admin}
+      CFP_RATE_LIMIT: ${CFP_RATE_LIMIT:-60/minute}
+      CFP_CORS_ORIGINS: ${CFP_CORS_ORIGINS:-http://localhost:4210,http://localhost:4200}
+      # Ollama on the host by default; empty = deterministic fake model
+      CFP_LLM_BASE_URL: ${CFP_LLM_BASE_URL-http://host.docker.internal:11434/v1}
+      CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
+      CFP_EMBED_MODEL: ${CFP_EMBED_MODEL:-}
+      CFP_LOG_LEVEL: ${CFP_LOG_LEVEL:-INFO}
+      CFP_FORWARDED_ALLOW_IPS: "*"  # the dashboard's nginx is the only way in on the compose network
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ./data/lakehouse:/data/lakehouse:ro
+      - ./reports:/app/reports:ro
+    ports: ["${API_PORT:-8110}:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+
+  dashboard:
+    build: ./dashboard
+    image: cfp/dashboard:local
+    ports: ["${DASHBOARD_PORT:-4210}:80"]
+    depends_on: [api]
+
+  # The pipeline the way a scheduled job would run it: same image, against the mounted data (Synthea output
+  # generated on the host with scripts/synthea.sh).
+  pipeline:
+    profiles: [jobs]
+    image: cfp/api:local
+    command: ["cfp", "pipeline", "--eval-patients", "20"]
+    environment:
+      CFP_SYNTHEA_DIR: /data/synthea
+      CFP_LAKEHOUSE_ROOT: /data/lakehouse
+      CFP_REPORTS_DIR: /app/reports
+      CFP_DEID_SALT: ${CFP_DEID_SALT:-change-me-to-a-long-random-string}
+      CFP_LLM_BASE_URL: ${CFP_LLM_BASE_URL-http://host.docker.internal:11434/v1}
+      CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
+      MLFLOW_TRACKING_URI: sqlite:////data/mlflow.db
+    volumes:
+      - ./data:/data
+      - ./reports:/app/reports
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    ports: ["${PROMETHEUS_PORT:-9105}:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  alertmanager:
+    profiles: [observability]
+    image: prom/alertmanager:v0.28.1
+    volumes: ["./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["${ALERTMANAGER_PORT:-9106}:9093"]
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["${GRAFANA_PORT:-3007}:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  pg:
