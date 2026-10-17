@@ -11,7 +11,7 @@ VERSION=v4.0.0
 SHA256=ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1
 JAR=.synthea/synthea-with-dependencies.jar
 
-mkdir -p .synthea
+mkdir -p .synthea "$(dirname "$OUT")"
 if [ ! -f "$JAR" ]; then
   echo "downloading Synthea $VERSION"
   curl -sSL -o "$JAR" "https://github.com/synthetichealth/synthea/releases/download/$VERSION/synthea-with-dependencies.jar"
