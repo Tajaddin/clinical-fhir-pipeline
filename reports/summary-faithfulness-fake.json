@@ -1,0 +1,190 @@
+{
+  "evaluated_at": "2026-10-17T15:36:01+00:00",
+  "model": "fake",
+  "retrieval": "bm25+recency",
+  "patients": 10,
+  "failed_generations": 0,
+  "truncated_outputs_repaired": 0,
+  "claims": 473,
+  "faithfulness_rate": 1.0,
+  "breakdown": {
+    "supported": 473
+  },
+  "by_section": {
+    "Problems": {
+      "claims": 74,
+      "supported_rate": 1.0
+    },
+    "Medications": {
+      "claims": 59,
+      "supported_rate": 1.0
+    },
+    "Recent encounters": {
+      "claims": 80,
+      "supported_rate": 1.0
+    },
+    "Latest results": {
+      "claims": 80,
+      "supported_rate": 1.0
+    },
+    "Recent procedures": {
+      "claims": 72,
+      "supported_rate": 1.0
+    },
+    "Immunizations": {
+      "claims": 80,
+      "supported_rate": 1.0
+    },
+    "Care plans": {
+      "claims": 20,
+      "supported_rate": 1.0
+    },
+    "Allergies": {
+      "claims": 8,
+      "supported_rate": 1.0
+    }
+  },
+  "claims_per_summary": 47.3,
+  "coverage": 1.0,
+  "sections_written_rate": 1.0,
+  "dropped_citations": 0,
+  "latency_s": {
+    "median": 0.0,
+    "p90": 0.0
+  },
+  "llm_judge_agreement": null,
+  "wall_time_s": 1.8,
+  "per_patient": [
+    {
+      "patient_id": "000cb105-0f6a-e089-2701-7fa5fdf7ec03",
+      "claims": 44,
+      "supported": 44,
+      "facts_available": 108,
+      "facts_shown": 43,
+      "facts_cited": 43,
+      "coverage": 1.0,
+      "sections_shown": 6,
+      "sections_written": 6,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "0021ec39-9457-e8d9-f66a-0fccd6e46b02",
+      "claims": 51,
+      "supported": 51,
+      "facts_available": 263,
+      "facts_shown": 50,
+      "facts_cited": 50,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "003b30a0-7fd2-f42c-df37-e66409b40bd1",
+      "claims": 49,
+      "supported": 49,
+      "facts_available": 211,
+      "facts_shown": 48,
+      "facts_cited": 48,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "00508659-1210-a7fa-b36f-24f5afab1c7e",
+      "claims": 46,
+      "supported": 46,
+      "facts_available": 168,
+      "facts_shown": 45,
+      "facts_cited": 45,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "00710614-34f5-5b84-99ad-f6d7de9ac615",
+      "claims": 36,
+      "supported": 36,
+      "facts_available": 84,
+      "facts_shown": 35,
+      "facts_cited": 35,
+      "coverage": 1.0,
+      "sections_shown": 6,
+      "sections_written": 6,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "00a9c741-f837-12c0-494c-928ff47d0ea1",
+      "claims": 34,
+      "supported": 34,
+      "facts_available": 72,
+      "facts_shown": 33,
+      "facts_cited": 33,
+      "coverage": 1.0,
+      "sections_shown": 6,
+      "sections_written": 6,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "00bd0ed6-396a-5390-b0f5-be458fef75e1",
+      "claims": 50,
+      "supported": 50,
+      "facts_available": 257,
+      "facts_shown": 49,
+      "facts_cited": 49,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "010d736c-d81f-3cd7-c12c-8ac4921888f6",
+      "claims": 59,
+      "supported": 59,
+      "facts_available": 180,
+      "facts_shown": 58,
+      "facts_cited": 58,
+      "coverage": 1.0,
+      "sections_shown": 8,
+      "sections_written": 8,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "0126af27-a469-d3f6-eed8-af0a1c46dad8",
+      "claims": 51,
+      "supported": 51,
+      "facts_available": 213,
+      "facts_shown": 50,
+      "facts_cited": 50,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    },
+    {
+      "patient_id": "01513b97-46a6-1303-6546-c8b85ab957b5",
+      "claims": 53,
+      "supported": 53,
+      "facts_available": 648,
+      "facts_shown": 52,
+      "facts_cited": 52,
+      "coverage": 1.0,
+      "sections_shown": 7,
+      "sections_written": 7,
+      "dropped_citations": 0,
+      "latency_s": 0.0
+    }
+  ],
+  "failures": []
+}
