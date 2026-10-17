@@ -1,0 +1,91 @@
+[project]
+name = "clinical-fhir-pipeline"
+version = "0.1.0"
+description = "Hospital-style analytics on synthetic FHIR R4: a DuckDB and Delta Lake lakehouse with de-identification and quality checks, a calibrated readmission-risk model with a model card, and cited LLM patient summaries with a faithfulness eval and an audit log"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Tajaddin Gafarov", email = "gafarovtajaddin@gmail.com" }]
+dependencies = [
+  "duckdb>=1.4",
+  "deltalake>=1.2",
+  "pyarrow>=19",
+  "orjson>=3.10",
+  "pandas>=2.3,<3",
+  "numpy>=2.2,<3",
+  "scikit-learn>=1.7",
+  "xgboost>=3.0",
+  "shap>=0.48",
+  "mlflow>=3.1",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.34",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.7",
+  "sqlalchemy>=2.0.36",
+  "psycopg[binary]>=3.2",
+  "httpx>=0.28",
+  "typer>=0.15",
+  "structlog>=25",
+  "prometheus-client>=0.21",
+  "slowapi>=0.1.9",
+  "rank-bm25>=0.2.2",
+  "matplotlib>=3.9",
+  "opentelemetry-sdk>=1.30",
+  "opentelemetry-exporter-otlp-proto-http>=1.30",
+  "opentelemetry-instrumentation-fastapi>=0.51b0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6",
+  "ruff>=0.9",
+  "mypy>=1.14",
+  "pandas-stubs>=2.2",
+  "pip-audit>=2.7",
+]
+
+[project.scripts]
+cfp = "cfp.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cfp"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "S", "W", "PL", "RUF", "SIM", "C4", "PT"]
+ignore = ["PLR0913", "PLR0917", "PLR2004", "S101", "S311", "S603", "E501", "PLR0912", "PLR0915", "RUF012", "PLC0415", "PLR0914", "PLR6301"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cfp", "fhir_factory", "conftest"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLR", "B011", "PT018"]
+"src/cfp/gold.py" = ["S608"]
+"src/cfp/quality.py" = ["S608"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["integration: needs Postgres or a generated Synthea cohort", "slow: long-running"]
+filterwarnings = ["ignore::FutureWarning", "ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src/cfp"]
+omit = ["src/cfp/cli.py"]
