@@ -1,19 +1,44 @@
+# One grouped pull request per ecosystem per month: enough to stay current without a queue of
+# single-package PRs, each running the full CI.
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
-  - package-ecosystem: npm
-    directory: /dashboard
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /
-    schedule: { interval: weekly }
-  - package-ecosystem: github-actions
-    directory: /
-    schedule: { interval: weekly }
-  - package-ecosystem: terraform
-    directory: /infra/terraform
-    schedule: { interval: weekly }
+- package-ecosystem: pip
+  directory: /
+  schedule:
+    interval: monthly
+  groups:
+    pip:
+      patterns:
+      - '*'
+- package-ecosystem: npm
+  directory: /dashboard
+  schedule:
+    interval: monthly
+  groups:
+    npm:
+      patterns:
+      - '*'
+- package-ecosystem: docker
+  directory: /
+  schedule:
+    interval: monthly
+  groups:
+    docker:
+      patterns:
+      - '*'
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: monthly
+  groups:
+    github_actions:
+      patterns:
+      - '*'
+- package-ecosystem: terraform
+  directory: /infra/terraform
+  schedule:
+    interval: monthly
+  groups:
+    terraform:
+      patterns:
+      - '*'
