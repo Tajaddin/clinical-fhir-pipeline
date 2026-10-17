@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: "24", cache: npm, cache-dependency-path: dashboard/package-lock.json }
       - uses: astral-sh/setup-uv@v5
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
@@ -122,7 +122,7 @@ jobs:
         with: { version: "${{ env.UV_VERSION }}" }
       - run: uv sync --extra dev
       - run: uv run pip-audit --skip-editable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: "24" }
       - run: npm audit --audit-level=high
         working-directory: dashboard
