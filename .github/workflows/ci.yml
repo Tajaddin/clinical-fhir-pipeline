@@ -28,7 +28,7 @@ jobs:
         with: { name: coverage, path: coverage.xml, retention-days: 7 }
 
   pipeline:
-    name: Synthea 100 patients through the whole pipeline
+    name: Synthea 400 patients through the whole pipeline
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/cache@v4
         with: { path: .synthea, key: synthea-v4.0.0 }
       - run: uv sync
-      - run: bash scripts/synthea.sh 100 42
+      - run: bash scripts/synthea.sh 400 42   # 100 patients gave 6 readmissions, under the 10 the model needs
       - run: uv run cfp pipeline --eval-patients 10
         env:
           CFP_DEID_SALT: ci-salt-not-a-secret

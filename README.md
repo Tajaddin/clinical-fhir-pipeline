@@ -132,7 +132,7 @@ make tf-validate   # terraform fmt and validate in Docker
 
 The unit tests build their own FHIR bundles (`tests/fhir_factory.py`) with identifiers that must disappear
 and inpatient admissions with known readmission labels; no Java, no model server, no database server. CI
-(`.github/workflows/ci.yml`) additionally generates 100 Synthea patients and runs the whole pipeline, runs
+(`.github/workflows/ci.yml`) additionally generates 400 Synthea patients and runs the whole pipeline, runs
 the audit store tests against Postgres, builds and end-to-end tests the dashboard, runs promtool, Terraform
 validate, gitleaks, pip-audit and npm audit, and builds both images.
 
