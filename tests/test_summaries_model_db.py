@@ -208,6 +208,11 @@ def test_supports_rejects_claims_that_contradict_the_cited_fact():
     assert supports("Essential hypertension and type 2 diabetes, active.", problem, diabetes) is not None
     assert supports("Essential hypertension since 2019 and diabetes since 2015.", problem, diabetes) is not None
     assert supports("Essential hypertension since 2015 and diabetes since 2019.", problem, diabetes) is None
+    body_weight = Fact("Observation/w", "Observation", "results", None, "Body Weight: 54.0 kg on 2023-04-06")
+    body_height = Fact("Observation/v", "Observation", "results", None, "Body Height: 151.1 cm on 2023-04-06")
+    measured = "On 2023-04-06 the patient weighed {} kg and had a height of {} cm."
+    assert supports(measured.format("54.0", "151.1"), body_weight, body_height) is not None
+    assert supports(measured.format("151.1", "54.0"), body_weight, body_height) is None
 
 
 def test_judge_summary_names_the_contradiction():

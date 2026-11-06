@@ -106,6 +106,8 @@ ONGOING = ("active", "ongoing", "current", "currently", "still", "continues", "c
 NEGATION = ("no", "not", "cannot", "never", "denies", "denied", "negative", "without", "ruled out", "rule out",
             "excluded", "absent", "absence", "free of", "none")  # fmt: skip
 CONTRACTED_NOT = re.compile(r"n['\u2019]t\b")  # doesn't, isn't, wasn't: read as "not"
+# A name written after a number belongs to it only right after it or its unit: "10 mg lisinopril".
+NAME_AFTER = re.compile(r"\s*(?:\S+\s+)?")
 DateParts = tuple[int | None, int, int | None]
 
 
@@ -176,14 +178,14 @@ def _states(fact: Fact, number: str) -> bool:
 
 
 def _named_next_to(text: str, start: int, end: int, facts: tuple[Fact, ...] | list[Fact]) -> list[Fact]:
-    """The cited facts whose name is written closest before the number, and those closest after it."""
+    """The cited facts whose name is written closest before the number, and those named right after it."""
     before: dict[int, list[Fact]] = {}
     after: dict[int, list[Fact]] = {}
     for f in facts:
         for token in set(_name_tokens(f.text)):
             if (i := text.rfind(token, 0, start)) >= 0:
                 before.setdefault(i + len(token), []).append(f)
-            if (j := text.find(token, end)) >= 0:
+            if (j := text.find(token, end)) >= 0 and NAME_AFTER.fullmatch(text, end, j):
                 after.setdefault(j, []).append(f)
     return (before[max(before)] if before else []) + (after[min(after)] if after else [])
 
