@@ -213,6 +213,16 @@ def test_supports_rejects_claims_that_contradict_the_cited_fact():
     measured = "On 2023-04-06 the patient weighed {} kg and had a height of {} cm."
     assert supports(measured.format("54.0", "151.1"), body_weight, body_height) is not None
     assert supports(measured.format("151.1", "54.0"), body_weight, body_height) is None
+    # A discharge date follows from the admission date and the length of stay.
+    stay = Fact(
+        "Encounter/s",
+        "Encounter",
+        "encounters",
+        None,
+        "Inpatient admission on 2012-02-18: Admission to surgical transplant department (procedure), 8.3 days",
+    )
+    assert supports("Inpatient admission from 2012-02-18 to 2012-02-26.", stay) is not None
+    assert supports("Inpatient admission from 2012-02-18 to 2012-03-04.", stay) is None
 
 
 def test_judge_summary_names_the_contradiction():

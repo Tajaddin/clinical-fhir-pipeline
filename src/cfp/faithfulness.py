@@ -7,12 +7,13 @@ Deterministic, so it runs in CI; an optional LLM judge is reported next to it, n
 from __future__ import annotations
 
 import json
+import math
 import re
 import statistics
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,7 @@ ONGOING = ("active", "ongoing", "current", "currently", "still", "continues", "c
 NEGATION = ("no", "not", "cannot", "never", "denies", "denied", "negative", "without", "ruled out", "rule out",
             "excluded", "absent", "absence", "free of", "none")  # fmt: skip
 CONTRACTED_NOT = re.compile(r"n['\u2019]t\b")  # doesn't, isn't, wasn't: read as "not"
+LENGTH_OF_STAY = re.compile(r", (\d+(?:\.\d+)?) days$")
 # A name written after a number belongs to it only right after it or its unit: "10 mg lisinopril".
 NAME_AFTER = re.compile(r"\s*(?:\S+\s+)?")
 DateParts = tuple[int | None, int, int | None]
@@ -151,8 +153,17 @@ def contradiction(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str 
     return _value_problem(claim_text, facts) or _wording_problem(claim_text, facts)
 
 
+def _fact_dates(fact: Fact) -> list[date]:
+    """The fact's dates, plus the discharge day an admission's length of stay implies."""
+    found = [date.fromisoformat(d) for d in _dates(fact.text)]
+    if found and (stay := LENGTH_OF_STAY.search(fact.text)):
+        days = float(stay.group(1))
+        found += [found[0] + timedelta(days=math.floor(days)), found[0] + timedelta(days=math.ceil(days))]
+    return found
+
+
 def _value_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
-    fact_dates = [date.fromisoformat(d) for f in facts for d in _dates(f.text)]
+    fact_dates = [d for f in facts for d in _fact_dates(f)]
     written, rest = _claim_dates(PSEUDONYM.sub(" ", claim_text))
     for year, month, day in written:
         if not any(d.month == month and year in (None, d.year) and day in (None, d.day) for d in fact_dates):
