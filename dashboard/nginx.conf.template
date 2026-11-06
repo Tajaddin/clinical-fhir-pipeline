@@ -1,7 +1,7 @@
 # Rendered by the nginx image's envsubst at start-up into /etc/nginx/conf.d/default.conf. Only DNS_RESOLVER
 # is substituted (set by 10-resolver.envsh); nginx's own $variables stay as they are.
 server {
-  listen 80;
+  listen 8080;
   server_name _;
   root /usr/share/nginx/html;
   index index.html;

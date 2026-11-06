@@ -49,7 +49,7 @@ services:
   dashboard:
     build: ./dashboard
     image: cfp/dashboard:local
-    ports: ["${DASHBOARD_PORT:-4210}:80"]
+    ports: ["${DASHBOARD_PORT:-4210}:8080"]
     depends_on: [api]
 
   # The pipeline the way a scheduled job would run it: same image, against the mounted data (Synthea output
