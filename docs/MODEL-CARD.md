@@ -15,7 +15,8 @@ discrimination below says something about the pipeline, not about real hospitals
 ## Data
 
 - Cohort: 2,960 inpatient admissions (2,903 modeled after excluding 25 in-hospital
-  deaths and 32 admissions censored by the end of the data) from 1,135 patients.
+  deaths and 32 admissions censored because their readmission window ends after the reference
+  date minus the maximum date shift) from 1,135 patients.
 - Label: another inpatient admission 0 to 30 days after discharge; prevalence 15.4%.
 - Split by patient: 1,850 train / 420 validation / 633 test admissions (227 test patients).
   The validation fold is used for early stopping, model selection and isotonic calibration; the test fold is

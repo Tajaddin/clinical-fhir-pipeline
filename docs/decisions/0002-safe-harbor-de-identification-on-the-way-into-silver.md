@@ -33,7 +33,7 @@ list:
   computed with an "id:" prefix so it is independent of the digest behind the date offset; references
   still join because the same id always maps to the same value. A test checks that no silver value equals
   an id, reference or identifier found in bronze. `cfp silver` refuses a salt shorter than 32 characters
-  or the example from `.env.example`, and the settings no longer carry a default.
+  or the previously published example salt, and neither the settings nor `.env.example` carry one.
 
 ## Consequences
 

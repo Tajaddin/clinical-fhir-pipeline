@@ -9,7 +9,7 @@
   itself is never written anywhere, so silver cannot be mapped back without the salt.
 - Patient and resource ids are replaced by a keyed HMAC of the id (separate from the one behind the offset),
   so references between tables still join and no source id leaves bronze.
-- The salt must be secret: a short one, or the example from the docs, is refused.
+- The salt must be secret: a short one, or the example the docs once published, is refused.
 
 Synthea data has no real people in it. The step is here because the pipeline is meant to run the same
 way on data that does.

@@ -152,7 +152,8 @@ discrimination below says something about the pipeline, not about real hospitals
 ## Data
 
 - Cohort: {c["admissions_total"]:,} inpatient admissions ({c["admissions_modeled"]:,} modeled after excluding {c["excluded_died"]} in-hospital
-  deaths and {c["excluded_censored"]} admissions censored by the end of the data) from {c["patients_modeled"]:,} patients.
+  deaths and {c["excluded_censored"]} admissions censored because their readmission window ends after the reference
+  date minus the maximum date shift) from {c["patients_modeled"]:,} patients.
 - Label: another inpatient admission 0 to 30 days after discharge; prevalence {pct(c["prevalence"])}.
 - Split by patient: {c["train"]:,} train / {c["val"]:,} validation / {c["test"]:,} test admissions ({c["test_patients"]:,} test patients).
   The validation fold is used for early stopping, model selection and isotonic calibration; the test fold is
