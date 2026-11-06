@@ -120,6 +120,18 @@ def test_supports_rejects_claims_that_contradict_the_cited_fact():
     assert supports("Essential hypertension, active since March 2, 2019.", problem) is None
     assert supports("Essential hypertension, active since March 1, 2019.", problem) is not None
     assert supports("Essential hypertension since 2019.", problem) is not None
+    for claim in (
+        "The patient doesn't have essential hypertension.",
+        "Essential hypertension isn't present.",
+        "Essential hypertension was excluded.",
+        "Essential hypertension is in remission.",
+        "Essential hypertension since June of 2019.",
+        "Essential hypertension since june 2019.",
+        "Essential hypertension since the 1st of June 2019.",
+    ):
+        assert supports(claim, problem) is None, claim
+    assert supports("Essential hypertension since march of 2019.", problem) is not None
+    assert supports("Essential hypertension since 2019 may need a review.", problem) is not None
     lab = Fact(
         "Observation/y", "Observation", "results", None, "Hemoglobin A1c/Hemoglobin.total in Blood: 6.1 % on 2024-11-02"
     )
@@ -144,8 +156,18 @@ def test_supports_rejects_claims_that_contradict_the_cited_fact():
         "amLODIPine 2.5 MG Oral Tablet (stopped), ordered 2020-01-05 for Essential hypertension (disorder)",
     )
     assert supports("amLODIPine 2.5 mg ordered on 2020-01-05 is not currently active.", stopped) is not None
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05 isn't currently active.", stopped) is not None
     assert supports("The patient is currently taking amLODIPine 2.5 mg.", stopped) is None
     assert supports("amLODIPine 5 mg oral tablet for hypertension.", stopped) is None
+    active = Fact(
+        "MedicationRequest/a",
+        "MedicationRequest",
+        "medications",
+        None,
+        "amLODIPine 2.5 MG Oral Tablet (active), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05.", active) is not None
+    assert supports("amLODIPine 2.5 mg wasn't continued after 2020.", active) is None
     # A claim citing several facts may take each value from any of them.
     lisinopril = Fact(
         "MedicationRequest/n",

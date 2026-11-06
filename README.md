@@ -112,7 +112,8 @@ gets them labelled `[P1]`, `[M2]`, ... and returns claims that cite those keys; 
 `Condition/<id>` and invented ones are dropped and counted. The checker then requires each claim to cite a
 resource of that patient, to repeat an anchor of it (name tokens, or a value or date with a name token), and
 to contradict nothing it cites: every number and date the claim writes must appear in a cited fact, and a
-negation or a status the facts do not state ("ruled out", "resolved", "still active") makes it unsupported.
+negation cue ("not", "doesn't", "ruled out", "excluded", "free of") or a status word ("resolved", "in
+remission", "still active") that the cited facts do not use makes it unsupported.
 The rate reported is supported claims over all claims; the breakdown names the failure kind.
 
 **Audit and access (ADR 0005).** Middleware writes who (key fingerprint), role, action, patient, purpose
@@ -157,7 +158,8 @@ everything. Costs and steps are in `docs/DEPLOY.md`. Not applied yet.
   post-surgical care), so the model's discrimination is about the pipeline, not about hospitals.
 - One machine. DuckDB and delta-rs instead of a Spark cluster (ADR 0001); the tables are Spark-readable.
 - The faithfulness check is strict on paraphrase and blind to omissions; it measures copying fidelity, and
-  the coverage figure (facts cited over facts shown) says how much of the record the summary used.
+  the coverage figure (facts cited over facts shown) says how much of the record the summary used. Negation
+  and status are lists of cue words, so a contradiction worded without one of them still passes.
 - One held-out split, and the score depends on which patients it holds out: 20 patients carry 28% of the
   modeled admissions (up to 68 each). With seeds 1 to 5 instead of 42 on the same cohort the champion's
   AUROC ranged from 0.852 to 0.937 and logistic regression's from 0.734 to 0.922. Grouped cross-validation

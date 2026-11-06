@@ -77,15 +77,19 @@ MONTHS = {
     )
     for name in names
 }  # fmt: skip
-_MONTH = r"\b(?P<mon>[A-Z][a-z]{2,8})\.?"
+# Month names in any case; abbreviations and "May" only capitalised, so "may" the verb is not a month.
+_MONTH = (
+    r"\b(?P<mon>(?i:january|february|march|april|june|july|august|september|october|november|december)"
+    r"|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\b)\.?"
+)
 _DAY = r"(?P<day>\d{1,2})(?:st|nd|rd|th)?"
 # Date forms a model writes, most specific first; each date found is blanked before the next pattern runs.
 DATE_PATTERNS = [
     re.compile(r"(?<!\d)(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})(?!\d)"),
     re.compile(_MONTH + r"\s+" + _DAY + r",?\s+(?P<year>\d{4})(?!\d)"),
-    re.compile(r"\b" + _DAY + r"\s+" + _MONTH + r",?\s+(?P<year>\d{4})(?!\d)"),
+    re.compile(r"\b" + _DAY + r"\s+(?:of\s+)?" + _MONTH + r",?\s+(?P<year>\d{4})(?!\d)"),
     re.compile(r"(?<![\d/])(?P<month>\d{1,2})/(?P<day>\d{1,2})/(?P<year>\d{4})(?!\d)"),
-    re.compile(_MONTH + r",?\s+(?P<year>\d{4})(?!\d)"),
+    re.compile(_MONTH + r",?\s+(?:of\s+)?(?P<year>\d{4})(?!\d)"),
     re.compile(_MONTH + r"\s+" + _DAY + r"(?![\d:])"),
 ]
 NUMBER = re.compile(r"(?<![A-Za-z0-9.])\d+(?:\.\d+)?")
@@ -96,9 +100,11 @@ ENDED_PHRASE = re.compile(
     r"(?:\s+(?:active|ongoing|current|taking|taken|prescribed))?\b"
 )
 ENDED = ("resolved", "resolution", "abated", "cured", "recovered", "healed", "stopped", "discontinued", "ended",
-         "ceased", "completed", "inactive")  # fmt: skip
+         "ceased", "completed", "inactive", "remission")  # fmt: skip
 ONGOING = ("active", "ongoing", "current", "currently", "still", "continues", "continuing", "persistent", "persists")
-NEGATION = ("no", "not", "never", "denies", "denied", "negative", "without", "ruled out", "rule out", "absent", "none")
+NEGATION = ("no", "not", "cannot", "never", "denies", "denied", "negative", "without", "ruled out", "rule out",
+            "excluded", "absent", "absence", "free of", "none")  # fmt: skip
+CONTRACTED_NOT = re.compile(r"n['\u2019]t\b")  # doesn't, isn't, wasn't: read as "not"
 DateParts = tuple[int | None, int, int | None]
 
 
@@ -157,8 +163,8 @@ def _value_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str
 
 
 def _wording_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
-    claim = claim_text.lower()
-    facts_text = " ".join(f.text.lower() for f in facts)
+    claim = CONTRACTED_NOT.sub(" not", claim_text.lower())
+    facts_text = CONTRACTED_NOT.sub(" not", " ".join(f.text.lower() for f in facts))
     statuses = {s for f in facts if (s := _status(f.text))}
     phrase = ENDED_PHRASE.search(claim)
     if phrase and statuses != {"ended"}:

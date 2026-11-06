@@ -38,7 +38,10 @@ eval.
   fails it. Re-scoring the six example summaries kept locally (156 claims) turned 7 supported claims into
   unsupported: six had a date or month the cited facts do not hold, one rounded a 35.02 percentile to "35th".
   The fake model's verbatim copies still score 100%, with no contradictions over all 2,263 patients. The
-  74% and 98% above were measured before this change.
+  74% and 98% above were measured before this change. Negation and status are cue-word lists; a review
+  found "doesn't have", "was excluded", "in remission" and lower-case or "June of 2019" dates passing, so
+  contracted negations, those cues and those date forms were added. A contradiction worded without a
+  listed cue still passes.
 - **Local model.** The eval runs with qwen2.5:3b on Ollama (free, on the owner's GPU) and the API accepts
   any OpenAI-compatible endpoint; a deterministic fake model makes the tests and CI independent of a model
   server. The fake copies facts verbatim, so the checker must pass it at 100%, which it does; that is the
