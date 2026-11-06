@@ -22,4 +22,4 @@ ENV PATH="/app/.venv/bin:$PATH" CFP_REPORTS_DIR=/app/reports CFP_LAKEHOUSE_ROOT=
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 CMD curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1
-CMD ["cfp", "serve", "--port", "8000"]
+CMD ["cfp", "serve", "--host", "0.0.0.0", "--port", "8000"]

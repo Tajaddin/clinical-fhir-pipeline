@@ -166,8 +166,8 @@ def eval_summaries(patients: int = 40, llm_judge: bool = False) -> None:
 
 
 @app.command()
-def serve(host: str = "0.0.0.0", port: int = 8000) -> None:  # noqa: S104
-    """Run the API."""
+def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Run the API (loopback only unless --host says otherwise; the image passes 0.0.0.0)."""
     import os
 
     import uvicorn

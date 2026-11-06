@@ -68,14 +68,15 @@ Needs Python 3.12 with [uv](https://docs.astral.sh/uv/), Java 11+ (for Synthea),
 ```bash
 make install                 # uv sync, npm ci
 make synthea                 # downloads the pinned Synthea jar (200 MB) and generates 2,000 patients, ~1 min
-cp .env.example .env         # set CFP_DEID_SALT (openssl rand -hex 32); silver refuses a short one
+cp .env.example .env         # set CFP_DEID_SALT and CFP_API_KEYS (openssl rand -hex 32 for each)
 make pipeline                # bronze -> silver -> quality -> gold -> train -> eval (fake model), ~2 min
 make report                  # render README results and docs/MODEL-CARD.md
 make up                      # Postgres, API on :8110, dashboard on :4210
 ```
 
-Open http://localhost:4210, paste `local-analyst-key` (or `local-admin-key` for the audit log) into the key
-box. For real summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoint; with
+Open http://localhost:4210 and paste the analyst key you set in `CFP_API_KEYS` (the admin key for the audit
+log) into the key box; Compose has no default keys and publishes its ports on 127.0.0.1 only. For real
+summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoint; with
 [Ollama](https://ollama.com) on the host and `ollama pull qwen2.5:3b` the Compose default works as is.
 `make up-obs` adds Prometheus (:9105), Alertmanager (:9106) and Grafana (:3007, dashboard provisioned).
 
