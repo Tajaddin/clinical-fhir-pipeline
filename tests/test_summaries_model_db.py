@@ -192,6 +192,26 @@ def test_judge_summary_names_the_contradiction():
     assert verdict.status == "unsupported" and verdict.problem == "value 11.9 not in the cited facts"
 
 
+def test_judge_summary_checks_every_fact_of_a_cited_resource():
+    """A blood pressure Observation is two facts under one reference; a claim may quote either."""
+    systolic = Fact(
+        "Observation/bp", "Observation", "results", None, "Systolic Blood Pressure: 128 mm[Hg] on 2024-05-01"
+    )
+    diastolic = Fact(
+        "Observation/bp", "Observation", "results", None, "Diastolic Blood Pressure: 82 mm[Hg] on 2024-05-01"
+    )
+    claims = [
+        {"text": "Systolic blood pressure 128 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+        {"text": "Blood pressure 128/82 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+        {"text": "Systolic blood pressure 182 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+    ]
+    summary = Summary(
+        "p", "P-1", "m", "v", "now", [{"title": "Latest results", "claims": claims}], [], 0, 0.0, None, None
+    )
+    verdicts = judge_summary(summary, [systolic, diastolic])
+    assert [v.status for v in verdicts] == ["supported", "supported", "unsupported"]
+
+
 def test_evaluate_writes_a_report_with_rates_and_examples(gold_lake, tmp_path):
     con = gold_lake.connect([("gold", "patient_facts")])
     ids = [r[0] for r in con.sql("select distinct patient_id from gold_patient_facts order by 1 limit 5").fetchall()]
