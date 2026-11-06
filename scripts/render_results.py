@@ -63,13 +63,14 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
                 f"selection rate at the {m['threshold']:.0%} threshold female {pct(sex['female']['selection_rate'])} vs male {pct(sex['male']['selection_rate'])}. "
                 "Age bands and race are in the model card."
             )
-    if f and f.get("latency_s"):
+    if f and f.get("model") != "fake" and f.get("latency_s"):
         b = f.get("breakdown", {})
         lines.append(
             f"- **Summary faithfulness** ({f['model']}, {f['retrieval']}, one model call per section, {f['patients']} patients, {f['claims']} claims, "
             f"{f.get('claims_per_summary')} per summary, coverage {pct(f.get('coverage'))} of the facts shown): "
             f"**{pct(f['faithfulness_rate'])} of claims supported** by the resource they cite; "
-            f"unsupported {b.get('unsupported', 0)}, missing citation {b.get('missing_citation', 0)}, unknown citation {b.get('unknown_citation', 0)}, "
+            f"unsupported {b.get('unsupported', 0)} (contradicting the cited fact {f.get('contradicted', 0)}), "
+            f"missing citation {b.get('missing_citation', 0)}, unknown citation {b.get('unknown_citation', 0)}, "
             f"invented citation keys dropped {f.get('dropped_citations', 0)}; median generation {f['latency_s']['median']} s per patient on the local GPU."
         )
         other = load("summary-faithfulness-qwen2.5-7b.json")
@@ -80,11 +81,17 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
                 f"(unsupported {ob.get('unsupported', 0)}, missing citation {ob.get('missing_citation', 0)}), coverage {pct(other.get('coverage'))}, "
                 f"median {other['latency_s']['median']} s per patient. The checker is the same; the model is what changes."
             )
-        fake = load("summary-faithfulness-fake.json")
-        if fake:
-            lines.append(
-                f"- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores {pct(fake['faithfulness_rate'])} on {fake['claims']} claims."
-            )
+    else:
+        lines.append(
+            "- **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims "
+            "whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it."
+        )
+    fake = load("summary-faithfulness-fake.json")
+    if fake:
+        lines.append(
+            f"- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores {pct(fake['faithfulness_rate'])} "
+            f"on {fake['claims']} claims, {fake.get('contradicted', 0)} of them flagged as contradictions."
+        )
     return "\n".join(line for line in lines if line) or "_No reports yet: run `make pipeline`._"
 
 
@@ -232,7 +239,9 @@ def main() -> int:
             readme.write_text(text, encoding="utf-8")
             print("wrote README.md")
     if m and "--write" in sys.argv:
-        (ROOT / "docs" / "MODEL-CARD.md").write_text(model_card(m, f), encoding="utf-8")
+        (ROOT / "docs" / "MODEL-CARD.md").write_text(
+            model_card(m, f if f and f.get("model") != "fake" else None), encoding="utf-8"
+        )
         print("wrote docs/MODEL-CARD.md")
     if "--write" not in sys.argv:
         print(results_section(m, f, q))

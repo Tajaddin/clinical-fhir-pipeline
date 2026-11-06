@@ -9,7 +9,7 @@ from cfp.db import audit_counts, current_summary, init_db, list_audit, make_engi
 from cfp.faithfulness import evaluate, judge_summary, supports
 from cfp.gold import build_gold
 from cfp.llm import Completion, FakeLLM, _extract_json
-from cfp.summaries import SECTIONS, Fact, Retriever, build_prompt, load_facts, load_patient, summarize
+from cfp.summaries import SECTIONS, Fact, Retriever, Summary, build_prompt, load_facts, load_patient, summarize
 from conftest import REFERENCE
 
 # ---- summaries and faithfulness ----------------------------------------------------------------------------
@@ -106,6 +106,67 @@ def test_supports_uses_name_value_or_date_anchors():
     assert supports("Patient is a male aged 65-89.", enc) is None
 
 
+def test_supports_rejects_claims_that_contradict_the_cited_fact():
+    problem = Fact(
+        "Condition/x", "Condition", "problems", None, "Essential hypertension (disorder), since 2019-03-01 (active)"
+    )
+    assert supports("Essential hypertension was ruled out; the patient has no hypertension.", problem) is None
+    assert supports("Essential hypertension resolved in 2012-05-05.", problem) is None
+    assert supports("Essential hypertension has resolved.", problem) is None
+    assert supports("Essential hypertension since 2012-05-05.", problem) is None
+    assert supports("Essential hypertension, active since March 2, 2019.", problem) is None
+    assert supports("Essential hypertension, active since March 1, 2019.", problem) is not None
+    assert supports("Essential hypertension since 2019.", problem) is not None
+    lab = Fact(
+        "Observation/y", "Observation", "results", None, "Hemoglobin A1c/Hemoglobin.total in Blood: 6.1 % on 2024-11-02"
+    )
+    assert supports("Hemoglobin A1c was 11.9%, dangerously high, on 2020-01-01.", lab) is None
+    assert supports("Hemoglobin A1c was 11.9% on 2024-11-02.", lab) is None
+    assert supports("Hemoglobin A1c was 6.10 % on November 2, 2024.", lab) is not None
+    ended = Fact(
+        "Condition/z",
+        "Condition",
+        "problems",
+        None,
+        "Acute viral pharyngitis (disorder), from 2024-04-22 to 2024-05-03",
+    )
+    assert supports("Acute viral pharyngitis from April 22 to May 3, 2024.", ended) is not None
+    assert supports("Acute viral pharyngitis from April 22 to May 9, 2024.", ended) is None
+    assert supports("Acute viral pharyngitis, still active since 2024-04-22.", ended) is None
+    stopped = Fact(
+        "MedicationRequest/m",
+        "MedicationRequest",
+        "medications",
+        None,
+        "amLODIPine 2.5 MG Oral Tablet (stopped), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05 is not currently active.", stopped) is not None
+    assert supports("The patient is currently taking amLODIPine 2.5 mg.", stopped) is None
+    assert supports("amLODIPine 5 mg oral tablet for hypertension.", stopped) is None
+    # A claim citing several facts may take each value from any of them.
+    lisinopril = Fact(
+        "MedicationRequest/n",
+        "MedicationRequest",
+        "medications",
+        None,
+        "lisinopril 10 MG Oral Tablet (stopped), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    both = "amLODIPine 2.5 mg and lisinopril 10 mg were ordered on 2020-01-05."
+    assert supports(both, stopped) is None and supports(both, stopped, lisinopril) is not None
+
+
+def test_judge_summary_names_the_contradiction():
+    fact = Fact(
+        "Observation/y", "Observation", "results", None, "Hemoglobin A1c/Hemoglobin.total in Blood: 6.1 % on 2024-11-02"
+    )
+    claim = {"text": "Hemoglobin A1c was 11.9% on 2024-11-02.", "citations": ["Observation/y"]}
+    summary = Summary(
+        "p", "P-1", "m", "v", "now", [{"title": "Latest results", "claims": [claim]}], [], 0, 0.0, None, None
+    )
+    (verdict,) = judge_summary(summary, [fact])
+    assert verdict.status == "unsupported" and verdict.problem == "value 11.9 not in the cited facts"
+
+
 def test_evaluate_writes_a_report_with_rates_and_examples(gold_lake, tmp_path):
     con = gold_lake.connect([("gold", "patient_facts")])
     ids = [r[0] for r in con.sql("select distinct patient_id from gold_patient_facts order by 1 limit 5").fetchall()]
@@ -113,7 +174,7 @@ def test_evaluate_writes_a_report_with_rates_and_examples(gold_lake, tmp_path):
         gold_lake, FakeLLM(unsupported_every=4), Retriever(per_section=3), ids, tmp_path / "f.json", tmp_path / "ex"
     )
     assert report["patients"] == 5 and report["claims"] > 10 and report["coverage"] == 1.0
-    assert 0.6 <= report["faithfulness_rate"] <= 0.8
+    assert 0.6 <= report["faithfulness_rate"] <= 0.8 and report["contradicted"] == 0
     assert report["breakdown"]["unsupported"] >= 1 and set(report["by_section"]) <= {
         title for title, _ in SECTIONS.values()
     }

@@ -17,17 +17,17 @@ scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing i
 - **Data quality:** 22 of 25 checks pass; 0 critical failures. Warnings: systolic blood pressure within 50-260 (2 of 31,503 rows); HbA1c within 3-20 (2,463 of 17,480 rows); no encounters after death (219 of 40,588 rows).
 - **Readmission model** (2,932 admissions from 1,141 patients, 15.5% readmitted within 30 days; patient-level split, 635 held-out admissions from 229 patients): champion **xgboost** with held-out **AUROC 0.832** (95% bootstrap CI 0.785 to 0.872), AUPRC 0.437, Brier 0.088, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.028); logistic_regression AUROC 0.798, ECE 0.031.
 - **Fairness (held-out):** AUROC female 0.838 vs male 0.823; selection rate at the 30% threshold female 21.5% vs male 17.6%. Age bands and race are in the model card.
-- **Summary faithfulness** (qwen2.5:3b, bm25+recency, one model call per section, 40 patients, 1059 claims, 26.48 per summary, coverage 90.7% of the facts shown): **98.3% of claims supported** by the resource they cite; unsupported 18, missing citation 0, unknown citation 0, invented citation keys dropped 15; median generation 17.75 s per patient on the local GPU.
-- **Same eval with qwen2.5:7b:** 97.5% of 1257 claims supported (unsupported 29, missing citation 3), coverage 92.8%, median 36.16 s per patient. The checker is the same; the model is what changes.
-- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 473 claims.
+- **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it.
+- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 473 claims, 0 of them flagged as contradictions.
 <!-- /RESULTS -->
 
 How they were measured: the cohort is `scripts/synthea.sh` (Synthea v4.0.0, seed 42, Tampa, Florida,
 reference and end date 2025-01-01). The model numbers are `cfp train` on a held-out fold split by patient,
 with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table).
-The faithfulness number is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
-deterministic checker described below; the same command with the fake model scores 100%, which is the
-checker's own test. Data quality is `cfp quality`.
+The faithfulness eval is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
+deterministic checker described below. The earlier qwen2.5:3b and qwen2.5:7b rates were scored by a checker
+that only tested whether a claim was about the fact it cites, so they were withdrawn; the eval has not been
+re-run since. The same command with the fake model is the checker's own test. Data quality is `cfp quality`.
 
 ## Architecture
 
@@ -105,7 +105,9 @@ section (problems, medications, encounters, results, allergies, procedures, immu
 retriever picks the top facts by a BM25 match to a clinical priority query blended with recency, the model
 gets them labelled `[P1]`, `[M2]`, ... and returns claims that cite those keys; keys map back to
 `Condition/<id>` and invented ones are dropped and counted. The checker then requires each claim to cite a
-resource of that patient and to repeat an anchor of it (name tokens, or a value or date with a name token).
+resource of that patient, to repeat an anchor of it (name tokens, or a value or date with a name token), and
+to contradict nothing it cites: every number and date the claim writes must appear in a cited fact, and a
+negation or a status the facts do not state ("ruled out", "resolved", "still active") makes it unsupported.
 The rate reported is supported claims over all claims; the breakdown names the failure kind.
 
 **Audit and access (ADR 0005).** Middleware writes who (key fingerprint), role, action, patient, purpose

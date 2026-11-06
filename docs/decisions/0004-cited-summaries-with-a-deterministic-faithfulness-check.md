@@ -31,6 +31,14 @@ eval.
   an anchor of the cited fact: enough of its name tokens, or a value or a date together with a name token.
   Failure modes are counted separately: unsupported, missing citation, unknown citation. An LLM judge can
   be run next to it for agreement, never instead of it.
+- **Amended 2026-11-06: an anchor is not enough.** An anchor only shows that the claim is about the fact;
+  "Essential hypertension was ruled out" or "HbA1c 11.9%" against a fact saying 6.1% passed. The claim must
+  now also contradict nothing it cites: every number and date it writes (ISO or spelled out) must appear in
+  a cited fact, and a negation or a status the facts do not state (resolved, no longer taking, still active)
+  fails it. Re-scoring the six example summaries kept locally (156 claims) turned 7 supported claims into
+  unsupported: six had a date or month the cited facts do not hold, one rounded a 35.02 percentile to "35th".
+  The fake model's verbatim copies still score 100%, with no contradictions over all 2,263 patients. The
+  74% and 98% above were measured before this change.
 - **Local model.** The eval runs with qwen2.5:3b on Ollama (free, on the owner's GPU) and the API accepts
   any OpenAI-compatible endpoint; a deterministic fake model makes the tests and CI independent of a model
   server. The fake copies facts verbatim, so the checker must pass it at 100%, which it does; that is the

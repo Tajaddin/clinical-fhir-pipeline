@@ -1,6 +1,7 @@
-"""Faithfulness eval for summaries: every claim must cite a fact of that patient and repeat an anchor of
-it (the name, a value or a date). Deterministic, so it runs in CI; an optional LLM judge is reported next
-to it, never instead of it."""
+"""Faithfulness eval for summaries: every claim must cite a fact of that patient, repeat an anchor of it
+(the name, a value or a date), and contradict none of the facts it cites: each number and date in the claim
+must appear in them, and a negation or a status the facts do not state (resolved, still active) fails it.
+Deterministic, so it runs in CI; an optional LLM judge is reported next to it, never instead of it."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import statistics
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,7 @@ class ClaimVerdict:
     citations: list[str]
     status: str  # supported | unsupported | missing_citation | unknown_citation
     anchor: str | None = None
+    problem: str | None = None  # what in an anchored claim contradicts the cited facts
 
 
 def _name_tokens(fact_text: str) -> list[str]:
@@ -58,7 +60,121 @@ def _dates(text: str) -> set[str]:
     return set(re.findall(r"\d{4}-\d{2}-\d{2}", text))
 
 
-def supports(claim_text: str, fact: Fact) -> str | None:
+def supports(claim_text: str, *facts: Fact) -> str | None:
+    """The anchor that ties the claim to one of the cited facts, or None when there is none or the claim
+    contradicts them."""
+    anchor = next((a for f in facts if (a := anchor_of(claim_text, f))), None)
+    return anchor if anchor and contradiction(claim_text, facts) is None else None
+
+
+MONTHS = {
+    name: i
+    for i, names in enumerate(
+        [("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"), ("may",), ("jun", "june"),
+         ("jul", "july"), ("aug", "august"), ("sep", "sept", "september"), ("oct", "october"), ("nov", "november"),
+         ("dec", "december")],
+        start=1,
+    )
+    for name in names
+}  # fmt: skip
+_MONTH = r"\b(?P<mon>[A-Z][a-z]{2,8})\.?"
+_DAY = r"(?P<day>\d{1,2})(?:st|nd|rd|th)?"
+# Date forms a model writes, most specific first; each date found is blanked before the next pattern runs.
+DATE_PATTERNS = [
+    re.compile(r"(?<!\d)(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})(?!\d)"),
+    re.compile(_MONTH + r"\s+" + _DAY + r",?\s+(?P<year>\d{4})(?!\d)"),
+    re.compile(r"\b" + _DAY + r"\s+" + _MONTH + r",?\s+(?P<year>\d{4})(?!\d)"),
+    re.compile(r"(?<![\d/])(?P<month>\d{1,2})/(?P<day>\d{1,2})/(?P<year>\d{4})(?!\d)"),
+    re.compile(_MONTH + r",?\s+(?P<year>\d{4})(?!\d)"),
+    re.compile(_MONTH + r"\s+" + _DAY + r"(?![\d:])"),
+]
+NUMBER = re.compile(r"(?<![A-Za-z0-9.])\d+(?:\.\d+)?")
+PSEUDONYM = re.compile(r"\bP-[0-9a-f]{10}\b")
+# Negated phrases that say an item is over; matched first so "not currently active" is one cue, not three.
+ENDED_PHRASE = re.compile(
+    r"\b(?:no longer|not (?:currently|presently|still|active|ongoing|current))"
+    r"(?:\s+(?:active|ongoing|current|taking|taken|prescribed))?\b"
+)
+ENDED = ("resolved", "resolution", "abated", "cured", "recovered", "healed", "stopped", "discontinued", "ended",
+         "ceased", "completed", "inactive")  # fmt: skip
+ONGOING = ("active", "ongoing", "current", "currently", "still", "continues", "continuing", "persistent", "persists")
+NEGATION = ("no", "not", "never", "denies", "denied", "negative", "without", "ruled out", "rule out", "absent", "none")
+DateParts = tuple[int | None, int, int | None]
+
+
+def _claim_dates(text: str) -> tuple[list[DateParts], str]:
+    """(year, month, day) of every date written in the text, None for a part not written, and the text with
+    those dates blanked out."""
+    found: list[DateParts] = []
+
+    def take(m: re.Match[str]) -> str:
+        parts = m.groupdict()
+        month = MONTHS.get(parts["mon"].lower()) if parts.get("mon") else int(parts["month"])
+        if month is None or not 1 <= month <= 12:
+            return m.group(0)
+        found.append(
+            (int(parts["year"]) if parts.get("year") else None, month, int(parts["day"]) if parts.get("day") else None)
+        )
+        return " "
+
+    for pattern in DATE_PATTERNS:
+        text = pattern.sub(take, text)
+    return found, text
+
+
+def _cue(text: str, word: str) -> bool:
+    return re.search(rf"\b{word}\b", text) is not None
+
+
+def _status(fact_text: str) -> str | None:
+    t = fact_text.lower()
+    if "(active)" in t:
+        return "active"
+    if re.search(r"\((?:stopped|completed|cancelled|inactive|resolved|revoked)\)|, from \d{4}-\d{2}-\d{2} to ", t):
+        return "ended"
+    return None
+
+
+def contradiction(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
+    """The first thing the claim states that the cited facts do not: a number, a date, a negation, or a status
+    (over vs ongoing). A value may come from any cited fact; cue words the facts use themselves don't count."""
+    return _value_problem(claim_text, facts) or _wording_problem(claim_text, facts)
+
+
+def _value_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
+    fact_dates = [date.fromisoformat(d) for f in facts for d in _dates(f.text)]
+    fact_numbers = {float(n) for f in facts for n in NUMBER.findall(re.sub(r"\d{4}-\d{2}-\d{2}", " ", f.text))}
+    years = {d.year for d in fact_dates}
+    written, rest = _claim_dates(PSEUDONYM.sub(" ", claim_text))
+    for year, month, day in written:
+        if not any(d.month == month and year in (None, d.year) and day in (None, d.day) for d in fact_dates):
+            shown = "-".join("?" if p is None else f"{p:02d}" for p in (year, month, day))
+            return f"date {shown} not in the cited facts"
+    for n in NUMBER.findall(rest):
+        if float(n) not in fact_numbers and not (re.fullmatch(r"\d{4}", n) and int(n) in years):
+            return f"value {n} not in the cited facts"
+    return None
+
+
+def _wording_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
+    claim = claim_text.lower()
+    facts_text = " ".join(f.text.lower() for f in facts)
+    statuses = {s for f in facts if (s := _status(f.text))}
+    phrase = ENDED_PHRASE.search(claim)
+    if phrase and statuses != {"ended"}:
+        return f"says '{phrase.group(0)}' but the cited facts do not say it ended"
+    claim = ENDED_PHRASE.sub(" ", claim)
+    ended = next((w for w in ENDED if _cue(claim, w) and not _cue(facts_text, w)), None)
+    if ended and statuses == {"active"}:
+        return f"says '{ended}' but the cited fact is active"
+    ongoing = next((w for w in ONGOING if _cue(claim, w) and not _cue(facts_text, w)), None)
+    if ongoing and statuses == {"ended"}:
+        return f"says '{ongoing}' but the cited fact has ended"
+    negation = next((w for w in NEGATION if _cue(claim, w) and not _cue(facts_text, w)), None)
+    return f"negation '{negation}' not in the cited facts" if negation else None
+
+
+def anchor_of(claim_text: str, fact: Fact) -> str | None:
     """The anchor that ties the claim to the fact, or None. Anchors, in order: most of the fact's name; two
     words of its name; its date plus any word of it; a value of it plus any word of it; a value plus the date."""
     claim = claim_text.lower()
@@ -82,20 +198,23 @@ def supports(claim_text: str, fact: Fact) -> str | None:
 
 
 def judge_summary(summary: Summary, facts: list[Fact]) -> list[ClaimVerdict]:
-    by_id = {f.fact_id: f for f in facts}
+    # One resource can carry several facts (a blood pressure Observation: systolic and diastolic).
+    by_id: dict[str, list[Fact]] = {}
+    for f in facts:
+        by_id.setdefault(f.fact_id, []).append(f)
     verdicts = []
     for claim in summary.claims():
         if not claim.citations:
             verdicts.append(ClaimVerdict(claim.section, claim.text, [], "missing_citation"))
             continue
-        cited = [by_id.get(c) for c in claim.citations]
-        if any(f is None for f in cited):
+        if any(c not in by_id for c in claim.citations):
             verdicts.append(ClaimVerdict(claim.section, claim.text, claim.citations, "unknown_citation"))
             continue
-        anchor = next((a for f in cited if f is not None and (a := supports(claim.text, f))), None)
-        verdicts.append(
-            ClaimVerdict(claim.section, claim.text, claim.citations, "supported" if anchor else "unsupported", anchor)
-        )
+        cited = [f for c in claim.citations for f in by_id[c]]
+        anchor = next((a for f in cited if (a := anchor_of(claim.text, f))), None)
+        problem = contradiction(claim.text, cited) if anchor else None
+        status = "supported" if anchor and not problem else "unsupported"
+        verdicts.append(ClaimVerdict(claim.section, claim.text, claim.citations, status, anchor, problem))
     return verdicts
 
 
@@ -127,7 +246,7 @@ def evaluate(
     failed: list[dict[str, str]] = []
     repaired = 0
     coverages: list[float] = []
-    sections_shown_total = sections_written_total = dropped_total = 0
+    sections_shown_total = sections_written_total = dropped_total = contradicted = 0
     started = time.perf_counter()
     for pid in patient_ids:
         try:
@@ -148,10 +267,10 @@ def evaluate(
         for v in verdicts:
             verdict_counter[v.status] += 1
             section_counter.setdefault(v.section, Counter())[v.status] += 1
+            contradicted += v.problem is not None
         if with_llm_judge:
-            by_id = {f.fact_id: f for f in facts}
             for v in verdicts:
-                cited = [by_id[c] for c in v.citations if c in by_id]
+                cited = [f for f in facts if f.fact_id in v.citations]
                 if cited:
                     total_judged += 1
                     agree += int(llm_judge(llm, v.text, cited) == (v.status == "supported"))
@@ -188,6 +307,7 @@ def evaluate(
         "claims": claims,
         "faithfulness_rate": round(verdict_counter["supported"] / claims, 4) if claims else None,
         "breakdown": dict(verdict_counter),
+        "contradicted": contradicted,
         "by_section": {
             s: {"claims": sum(c.values()), "supported_rate": round(c["supported"] / sum(c.values()), 4)}
             for s, c in section_counter.items()

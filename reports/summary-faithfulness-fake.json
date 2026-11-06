@@ -1,5 +1,5 @@
 {
-  "evaluated_at": "2026-10-17T15:36:01+00:00",
+  "evaluated_at": "2026-11-06T05:08:26+00:00",
   "model": "fake",
   "retrieval": "bm25+recency",
   "patients": 10,
@@ -10,6 +10,7 @@
   "breakdown": {
     "supported": 473
   },
+  "contradicted": 0,
   "by_section": {
     "Problems": {
       "claims": 74,
@@ -53,7 +54,7 @@
     "p90": 0.0
   },
   "llm_judge_agreement": null,
-  "wall_time_s": 1.8,
+  "wall_time_s": 2.6,
   "per_patient": [
     {
       "patient_id": "000cb105-0f6a-e089-2701-7fa5fdf7ec03",

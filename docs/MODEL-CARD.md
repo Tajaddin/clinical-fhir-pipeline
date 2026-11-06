@@ -131,10 +131,6 @@ that was absent):
   approximate to within a month.
 - Calibration is checked on 635 admissions; the per-group calibration figures for small groups are noisy.
 
-## Companion: summary faithfulness
-
-The cited-summary feature is evaluated separately (`reports/summary-faithfulness.json`): 98.3% of 1059 claims over 40 patients were supported by the resource they cite (qwen2.5:3b, bm25+recency).
-
 ## Monitoring
 
 Scores are written to `gold.risk_scores` with the split each admission belonged to. The API exposes the
