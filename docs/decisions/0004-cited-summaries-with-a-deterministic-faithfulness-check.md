@@ -46,7 +46,11 @@ eval.
   hemoglobin of 11.9 g/dL fails. Re-scoring the 1,113 claims of a qwen2.5:3b run turned 9 supported claims
   unsupported: 7 took a value or a year from another cited fact, 1 gave a serum creatinine as blood, and 1
   verdict was wrong ("influenza vaccines in 2022" after a pneumococcal vaccine: "vaccine" was the nearest
-  name).
+  name). Reading every flagged claim of both model runs found two more kinds of false positive, now fixed: a
+  discharge date computed from the admission date and the length of stay, and a name four words after a
+  number ("weighed 54.0 kg and had a height of 151.1 cm"); a name after a number now counts only right
+  after it or its unit. Re-run on 2026-11-06 with this checker, the same 40 patients score 91.4% of 1,113
+  claims with qwen2.5:3b and 96.2% of 1,215 with qwen2.5:7b.
 - **Local model.** The eval runs with qwen2.5:3b on Ollama (free, on the owner's GPU) and the API accepts
   any OpenAI-compatible endpoint; a deterministic fake model makes the tests and CI independent of a model
   server. The fake copies facts verbatim, so the checker must pass it at 100%, which it does; that is the

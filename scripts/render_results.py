@@ -89,7 +89,8 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
             ob = other.get("breakdown", {})
             lines.append(
                 f"- **Same eval with {other['model']}:** {pct(other['faithfulness_rate'])} of {other['claims']} claims supported "
-                f"(unsupported {ob.get('unsupported', 0)}, missing citation {ob.get('missing_citation', 0)}), coverage {pct(other.get('coverage'))}, "
+                f"(unsupported {ob.get('unsupported', 0)}, contradicting the cited fact {other.get('contradicted', 0)}, "
+                f"missing citation {ob.get('missing_citation', 0)}), coverage {pct(other.get('coverage'))}, "
                 f"median {other['latency_s']['median']} s per patient. The checker is the same; the model is what changes."
             )
     else:

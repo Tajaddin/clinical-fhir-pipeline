@@ -17,7 +17,8 @@ committed scripts on a 2,263-patient Synthea cohort generated with a fixed seed;
 - **Data quality:** 22 of 25 checks pass; 0 critical failures. Warnings: systolic blood pressure within 50-260 (2 of 31,503 rows); HbA1c within 3-20 (2,463 of 17,480 rows); no encounters after death (219 of 40,588 rows).
 - **Readmission model** (2,903 admissions from 1,135 patients, 15.4% readmitted within 30 days; patient-level split, 633 held-out admissions from 227 patients): champion **xgboost** with held-out **AUROC 0.860** on this split (95% bootstrap CI 0.787 to 0.939; **0.852 to 0.937 over 5 other patient splits**), AUPRC 0.445, Brier 0.097, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.039); logistic_regression AUROC 0.820 (0.734 to 0.922 over 5 other patient splits), ECE 0.046.
 - **Fairness (held-out):** AUROC female 0.931 vs male 0.802; selection rate at the 30% threshold female 10.8% vs male 27.2%. Age bands and race are in the model card.
-- **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it.
+- **Summary faithfulness** (qwen2.5:3b, bm25+recency, one model call per section, 40 patients, 1113 claims, 27.82 per summary, coverage 92.3% of the facts shown): **91.4% of claims supported** by the resource they cite; unsupported 95 (contradicting the cited fact 62), missing citation 1, unknown citation 0, invented citation keys dropped 119; median generation 15.59 s per patient on the local GPU.
+- **Same eval with qwen2.5:7b:** 96.2% of 1215 claims supported (unsupported 43, contradicting the cited fact 15, missing citation 3), coverage 92.2%, median 30.71 s per patient. The checker is the same; the model is what changes.
 - **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 505 claims, 0 of them flagged as contradictions.
 <!-- /RESULTS -->
 
@@ -28,10 +29,18 @@ the interval resamples patients. They were re-run on 2026-11-06 with a random `C
 are now keyed pseudonyms, so the salt decides which patients the split holds out, and that salt is not
 published. `cfp train` therefore also re-fits both models on five other patient splits (seeds 1 to 5) and
 reports their range; quote the range, not the single split.
-The faithfulness eval is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
-deterministic checker described below. The earlier qwen2.5:3b and qwen2.5:7b rates were scored by a checker
-that only tested whether a claim was about the fact it cites, so they were withdrawn; the eval has not been
-re-run since. The same command with the fake model is the checker's own test. Data quality is `cfp quality`.
+The faithfulness eval is `cfp eval-summaries --patients 40` on Ollama (RTX 4060) with BM25 retrieval, run
+with qwen2.5:3b and again with `CFP_LLM_MODEL=qwen2.5:7b`, scored by the deterministic checker described
+below; both were re-run on 2026-11-06. The 98.3% and 97.5% published before came from a checker that only
+tested whether a claim was about the fact it cites. Every claim flagged as contradicting its fact was read
+by hand: 58 of 62 in the qwen2.5:3b run and 10 of 15 in the qwen2.5:7b run are real (dates and values the
+cited facts do not hold, a value taken from another cited fact, "currently taking" a completed order). The
+false positives are paraphrases the cue lists miss ("no blood" for "not detected", "reasons are not
+specified"), percentiles rounded to "23rd" or "94th", "was active from ... to ..." for an ended condition,
+and "vaccine" read as the name nearest a year. Of the claims without an anchor, 18 of 33 (3b) and 8 of 28
+(7b) are correct but give the date in words, which the anchor rule does not read, so the rates are lower
+bounds. The same command with the fake model is the checker's own test: over all 2,263 patients it supports
+all 111,336 claims and flags none. Data quality is `cfp quality`.
 
 ## Architecture
 
@@ -131,7 +140,7 @@ promtool unit tests (`make alerts-test`).
 ## Tests
 
 ```bash
-make test          # 45 Python tests: bronze, de-identification, silver, quality, gold labels and features,
+make test          # 47 Python tests: bronze, de-identification, silver, quality, gold labels and features,
                    # model (160 factory patients), summaries, faithfulness checker, audit store, API
 make e2e-fixture   # deterministic cohort under data/e2e
 make serve-e2e     # API on :8110 serving it (separate terminal)
