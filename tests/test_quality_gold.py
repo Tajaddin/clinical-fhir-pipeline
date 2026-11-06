@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 
+import pyarrow as pa
 import pytest
 
 from cfp.gold import FLAG_COLUMNS, HISTORY_COLUMNS, LAB_COLUMNS, build_gold
+from cfp.lake import Lake
 from cfp.quality import CHECKS, Check, QualityError, enforce, run_checks, write_results
+from cfp.silver import SCHEMAS
 from conftest import N_PATIENTS, REFERENCE
 
 
@@ -90,6 +93,43 @@ def test_patient_facts_cite_real_resources_with_dates_in_text(lake, gold_stats):
         "select text from gold_patient_facts where section = 'results' and text like 'Systolic%' limit 1"
     ).fetchone()
     assert bp is not None and "mm[Hg]" in bp[0]
+
+
+def test_censoring_uses_the_earliest_end_a_shifted_record_can_have(tmp_path):
+    """Records end at the reference date shifted by up to 30 days either way. A late encounter of a patient
+    shifted forward must not extend the follow-up of a patient shifted back: only windows that close before
+    reference - 30 days are complete for everyone."""
+    lake = Lake(str(tmp_path / "lake"))
+    for table, schema in SCHEMAS.items():
+        lake.write_delta("silver", table, pa.Table.from_pylist([], schema=schema))
+    lake.write_delta(
+        "silver",
+        "patients",
+        pa.Table.from_pylist(
+            [{"patient_id": p, "sex": "female", "age_years": 60} for p in ("a", "b")], SCHEMAS["patients"]
+        ),
+    )
+
+    def stay(eid: str, pid: str, start: datetime) -> dict:
+        end = start + timedelta(days=3)
+        return {
+            "encounter_id": eid,
+            "patient_id": pid,
+            "class_code": "IMP",
+            "start_ts": start,
+            "end_ts": end,
+            "length_hours": 72.0,
+        }
+
+    encounters = [
+        stay("early", "a", datetime(2024, 9, 25)),  # discharged 09-28: window closes 10-28
+        stay("late", "a", datetime(2024, 11, 7)),  # discharged 11-10: window closes 12-10, after 12-02
+        stay("shifted-forward", "b", datetime(2025, 1, 25)),  # the latest shifted date in the data
+    ]
+    lake.write_delta("silver", "encounters", pa.Table.from_pylist(encounters, SCHEMAS["encounters"]))
+    build_gold(lake, readmission_days=30, reference_date=date(2025, 1, 1), max_shift_days=30)
+    adm = lake.read_delta("gold", "admissions").to_pandas().set_index("admission_id")
+    assert adm["censored"].to_dict() == {"early": False, "late": True, "shifted-forward": True}
 
 
 def test_reference_date_type():

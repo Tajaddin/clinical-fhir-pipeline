@@ -4,7 +4,7 @@ summaries cite. SQL in DuckDB over the silver Delta tables, written back as Delt
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from cfp.lake import Lake
 
@@ -71,7 +71,11 @@ def _flag_sql(patterns: list[str]) -> str:
     return " or ".join(f"lower(c.display) like '{p}'" for p in patterns)
 
 
-def admissions_sql(readmission_days: int, reference_date: date) -> str:
+def admissions_sql(readmission_days: int, reference_date: date, max_shift_days: int = 30) -> str:
+    """The cohort with labels and features. Each patient's dates are shifted by up to max_shift_days, so their
+    record ends somewhere within that many days of the reference date; an admission is censored unless its
+    whole readmission window falls before the earliest of those ends, whatever its outcome."""
+    observed_until = (reference_date - timedelta(days=max_shift_days)).isoformat()
     flags = ",\n".join(
         f"      coalesce(max(case when {_flag_sql(p)} then 1 else 0 end), 0) as has_{name}"
         for name, p in CONDITION_FLAGS.items()
@@ -89,13 +93,12 @@ with index_adm as (
   from silver_encounters e
   where e.class_code = 'IMP' and e.start_ts is not null and e.end_ts is not null and e.end_ts >= e.start_ts
 ),
-data_end as (select max(end_ts) as ts from silver_encounters),
 labelled as (
   select a.*,
          date_diff('day', a.discharge_ts, a.next_admit_ts) as days_to_next_admission,
          coalesce(date_diff('day', a.discharge_ts, a.next_admit_ts) between 0 and {readmission_days}, false) as readmitted,
          (p.deceased_ts is not null and p.deceased_ts <= a.discharge_ts + interval 1 day) as died_in_hospital,
-         (a.discharge_ts + interval {readmission_days} day > (select ts from data_end)) as censored,
+         (a.discharge_ts + interval {readmission_days} day > cast('{observed_until}' as timestamp)) as censored,
          p.sex, p.age_band as age_band_now, p.race, p.ethnicity,
          greatest(0, p.age_years - cast(floor(date_diff('day', a.admit_ts, cast('{reference_date.isoformat()}' as timestamp)) / 365.25) as integer)) as age_at_admission
   from index_adm a join silver_patients p using (patient_id)
@@ -231,11 +234,11 @@ order by patient_id, section, ts desc
 """
 
 
-def build_gold(lake: Lake, readmission_days: int, reference_date: date) -> GoldStats:
+def build_gold(lake: Lake, readmission_days: int, reference_date: date, max_shift_days: int = 30) -> GoldStats:
     con = lake.connect()
     stats = GoldStats()
 
-    admissions = con.sql(admissions_sql(readmission_days, reference_date)).fetch_arrow_table()
+    admissions = con.sql(admissions_sql(readmission_days, reference_date, max_shift_days)).fetch_arrow_table()
     lake.write_delta("gold", "admissions", admissions)
     stats.admissions = admissions.num_rows
     if admissions.num_rows:

@@ -92,7 +92,7 @@ def gold() -> None:
 
     s = settings()
     started = time.time()
-    stats = build_gold(_lake(), s.readmission_days, date.fromisoformat(s.reference_date))
+    stats = build_gold(_lake(), s.readmission_days, date.fromisoformat(s.reference_date), s.date_shift_max_days)
     _echo("gold", stats.__dict__, started)
 
 
