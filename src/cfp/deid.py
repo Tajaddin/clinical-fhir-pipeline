@@ -7,6 +7,9 @@
 - Every other date is shifted by a per-patient offset of 1 to 30 days in either direction, derived from an
   HMAC of the patient id with a secret salt. Intervals inside one patient's record survive; the offset
   itself is never written anywhere, so silver cannot be mapped back without the salt.
+- Patient and resource ids are replaced by a keyed HMAC of the id (separate from the one behind the offset),
+  so references between tables still join and no source id leaves bronze.
+- The salt must be secret: a short one, or the example from the docs, is refused.
 
 Synthea data has no real people in it. The step is here because the pipeline is meant to run the same
 way on data that does.
@@ -44,14 +47,39 @@ SPARSE_ZIP3 = frozenset(
 AGE_BANDS: tuple[tuple[int, str], ...] = ((18, "0-17"), (40, "18-39"), (65, "40-64"), (90, "65-89"), (10**6, "90+"))
 
 
+MIN_SALT_LENGTH = 32
+PUBLISHED_SALTS = frozenset({"change-me-to-a-long-random-string"})
+
+
+class WeakSaltError(ValueError):
+    pass
+
+
+def check_salt(salt: str) -> None:
+    if salt in PUBLISHED_SALTS or len(salt) < MIN_SALT_LENGTH:
+        raise WeakSaltError(
+            f"CFP_DEID_SALT must be a secret of at least {MIN_SALT_LENGTH} characters, not the published example; "
+            "generate one with: openssl rand -hex 32"
+        )
+
+
 @dataclass(frozen=True)
 class DeidContext:
     salt: str
     reference_date: date
     max_shift_days: int = 30
 
+    def __post_init__(self) -> None:
+        check_salt(self.salt)
+
     def offset_days(self, patient_id: str) -> int:
         return patient_offset_days(patient_id, self.salt, self.max_shift_days)
+
+    def pseudo_id(self, source_id: str) -> str:
+        return pseudonymous_id(source_id, self.salt)
+
+    def pseudo_ref(self, source_id: str | None) -> str | None:
+        return None if source_id is None else pseudonymous_id(source_id, self.salt)
 
 
 def _digest(patient_id: str, salt: str) -> str:
@@ -67,6 +95,12 @@ def patient_offset_days(patient_id: str, salt: str, max_days: int = 30) -> int:
 
 def pseudonym(patient_id: str, salt: str) -> str:
     return "P-" + _digest(patient_id, salt)[8:18]
+
+
+def pseudonymous_id(source_id: str, salt: str) -> str:
+    """Stable 128-bit stand-in for a source id. The "id:" prefix keeps it independent of the digest behind the
+    date offset, so publishing it reveals nothing about the shift."""
+    return _digest("id:" + source_id, salt)[:32]
 
 
 def shift_ts(value: str | None, offset_days: int) -> datetime | None:

@@ -26,7 +26,7 @@ def main(target: Path = ROOT / "data" / "e2e") -> None:
     synthea = write_bundles(target / "synthea", make_cohort(160, seed=3))
     lake = Lake(str(target / "lakehouse"))
     ingest(synthea, lake)
-    build_silver(lake, DeidContext(salt="e2e-salt", reference_date=date(2025, 1, 1)))
+    build_silver(lake, DeidContext(salt="e2e-salt-for-synthetic-test-data-only", reference_date=date(2025, 1, 1)))
     reports = target / "reports"
     write_results(lake, run_checks(lake), reports / "data-quality.json")
     build_gold(lake, readmission_days=30, reference_date=date(2025, 1, 1))

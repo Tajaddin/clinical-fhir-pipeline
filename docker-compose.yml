@@ -62,7 +62,7 @@ services:
       CFP_SYNTHEA_DIR: /data/synthea
       CFP_LAKEHOUSE_ROOT: /data/lakehouse
       CFP_REPORTS_DIR: /app/reports
-      CFP_DEID_SALT: ${CFP_DEID_SALT:-change-me-to-a-long-random-string}
+      CFP_DEID_SALT: ${CFP_DEID_SALT:-}  # required: set it in .env (openssl rand -hex 32)
       CFP_LLM_BASE_URL: ${CFP_LLM_BASE_URL-http://host.docker.internal:11434/v1}
       CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
       MLFLOW_TRACKING_URI: sqlite:////data/mlflow.db

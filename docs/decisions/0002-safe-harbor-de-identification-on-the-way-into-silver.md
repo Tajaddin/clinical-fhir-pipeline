@@ -28,6 +28,12 @@ list:
   the only way back and lives in an environment variable.
 - Free-text documents (DocumentReference, DiagnosticReport presentedForm) are not extracted at all, because
   Synthea's notes contain the patient's name and de-identifying free text is a different project.
+- **Amended 2026-11-06.** Keeping the source ids made "the salt is the only way back" untrue: anyone with
+  the source system can look an id up. Patient and resource ids are now replaced by a keyed HMAC of the id,
+  computed with an "id:" prefix so it is independent of the digest behind the date offset; references
+  still join because the same id always maps to the same value. A test checks that no silver value equals
+  an id, reference or identifier found in bronze. `cfp silver` refuses a salt shorter than 32 characters
+  or the example from `.env.example`, and the settings no longer carry a default.
 
 ## Consequences
 

@@ -15,7 +15,7 @@ from cfp.silver import build_silver
 from fhir_factory import make_cohort, write_bundles
 
 N_PATIENTS = 30
-SALT = "unit-test-salt"
+SALT = "unit-test-salt-for-synthetic-data-only"
 REFERENCE = date(2025, 1, 1)
 
 

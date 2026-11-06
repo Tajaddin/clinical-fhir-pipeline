@@ -34,14 +34,14 @@ def test_a_failing_critical_check_raises(lake, tmp_path):
         enforce(summary)
 
 
-def test_admissions_have_labels_from_known_readmissions(lake, gold_stats):
+def test_admissions_have_labels_from_known_readmissions(lake, gold_stats, ctx):
     con = lake.connect()
     adm = con.sql("select * from gold_admissions order by patient_id, admit_ts").df()
     assert gold_stats.admissions == len(adm) and len(adm) >= N_PATIENTS
     # The factory readmits patients with index % 3 == 1 within 2 to 25 days and admits some others after 90 days.
     first = adm.groupby("patient_id").first().reset_index()
     readmitted = {pid for pid, r in zip(first["patient_id"], first["readmitted"], strict=True) if r}
-    expected = {f"{i:08x}-0000-4000-8000-000000000000" for i in range(N_PATIENTS) if i % 3 == 1}
+    expected = {ctx.pseudo_id(f"{i:08x}-0000-4000-8000-000000000000") for i in range(N_PATIENTS) if i % 3 == 1}
     assert readmitted == expected
     gaps = first.loc[first["readmitted"], "days_to_next_admission"]
     assert gaps.between(0, 30).all()

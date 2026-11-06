@@ -44,9 +44,8 @@ jobs:
         with: { path: .synthea, key: synthea-v4.0.0 }
       - run: uv sync
       - run: bash scripts/synthea.sh 400 42   # 100 patients gave 6 readmissions, under the 10 the model needs
-      - run: uv run cfp pipeline --eval-patients 10
+      - run: CFP_DEID_SALT="$(openssl rand -hex 32)" uv run cfp pipeline --eval-patients 10
         env:
-          CFP_DEID_SALT: ci-salt-not-a-secret
           MLFLOW_TRACKING_URI: sqlite:///mlflow.db
       - run: uv run python scripts/render_results.py --check
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

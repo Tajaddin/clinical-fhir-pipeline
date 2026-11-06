@@ -68,7 +68,7 @@ Needs Python 3.12 with [uv](https://docs.astral.sh/uv/), Java 11+ (for Synthea),
 ```bash
 make install                 # uv sync, npm ci
 make synthea                 # downloads the pinned Synthea jar (200 MB) and generates 2,000 patients, ~1 min
-cp .env.example .env         # set CFP_DEID_SALT to something long and random
+cp .env.example .env         # set CFP_DEID_SALT (openssl rand -hex 32); silver refuses a short one
 make pipeline                # bronze -> silver -> quality -> gold -> train -> eval (fake model), ~2 min
 make report                  # render README results and docs/MODEL-CARD.md
 make up                      # Postgres, API on :8110, dashboard on :4210
@@ -84,8 +84,10 @@ box. For real summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoin
 **De-identification (ADR 0002).** Names, addresses below state and 3-digit zip, phone, e-mail, SSN and
 other numbers are never extracted. Birth dates become a year and an age band (90+ capped, no year). Every
 date is shifted by a per-patient offset of 1 to 30 days derived from an HMAC of the patient id and a secret
-salt, so intervals inside one record survive and no re-identification table exists. Free-text notes are
-not extracted.
+salt, so intervals inside one record survive and no re-identification table exists. Patient and resource ids
+are replaced by a separate keyed HMAC of the id, so tables still join but no source id reaches silver, gold or
+the API. `cfp silver` refuses a salt shorter than 32 characters or the example one. Free-text notes are not
+extracted.
 
 **Quality checks.** 25 SQL checks on silver with severities: ids unique, references resolve, encounters end
 after they start, ages within 0 to 90, no birth year over 89, coded problems and medications, plausible

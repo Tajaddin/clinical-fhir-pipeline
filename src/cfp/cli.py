@@ -57,11 +57,17 @@ def bronze() -> None:
 @app.command()
 def silver() -> None:
     """Typed, de-identified Delta tables from bronze."""
+    from cfp.deid import WeakSaltError
     from cfp.silver import build_silver, context_from_settings
 
     s = settings()
+    try:
+        ctx = context_from_settings(s.deid_salt, s.reference_date, s.date_shift_max_days)
+    except WeakSaltError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
     started = time.time()
-    stats = build_silver(_lake(), context_from_settings(s.deid_salt, s.reference_date, s.date_shift_max_days))
+    stats = build_silver(_lake(), ctx)
     _echo("silver", stats.__dict__, started)
 
 

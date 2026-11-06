@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     reference_date: str = "2025-01-01"  # Synthea's -r; ages and "recent" are relative to it
 
     # De-identification
-    deid_salt: str = "change-me-to-a-long-random-string"
+    deid_salt: str = ""  # required by `cfp silver`; at least 32 random characters
     date_shift_max_days: int = 30
 
     # Model

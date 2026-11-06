@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import date
 
 import pyarrow.compute as pc
 import pytest
+import typer
 
 from cfp.bronze import ingest
-from cfp.deid import DeidContext, age_band, patient_offset_days, pseudonym, shift_ts, zip3
+from cfp.config import reset_settings_cache
+from cfp.deid import DeidContext, WeakSaltError, age_band, patient_offset_days, pseudonym, shift_ts, zip3
+from cfp.fhir import ref_id
 from cfp.lake import Lake
 from cfp.silver import RESOURCE_TABLE, SCHEMAS, extract_observation, extract_patient
 from conftest import N_PATIENTS, SALT
@@ -80,8 +85,59 @@ def test_observation_components_become_rows():
           "component": [{"code": {"coding": [{"code": "8480-6", "display": "Systolic"}]}, "valueQuantity": {"value": 120, "unit": "mm[Hg]"}},
                         {"code": {"coding": [{"code": "8462-4", "display": "Diastolic"}]}, "valueQuantity": {"value": 80, "unit": "mm[Hg]"}}]}  # fmt: skip
     rows = extract_observation(bp, ctx, "p")
-    assert [r["observation_id"] for r in rows] == ["o1", "o1#0", "o1#1"]
-    assert rows[1]["value_num"] == 120 and rows[1]["component_of"] == "o1" and rows[0]["value_num"] is None
+    oid = ctx.pseudo_id("o1")
+    assert [r["observation_id"] for r in rows] == [oid, f"{oid}#0", f"{oid}#1"]
+    assert rows[1]["value_num"] == 120 and rows[1]["component_of"] == oid and rows[0]["value_num"] is None
+    assert {r["patient_id"] for r in rows} == {ctx.pseudo_id("p")}
+
+
+@pytest.mark.parametrize("salt", ["", "short-salt", "change-me-to-a-long-random-string"])
+def test_a_short_or_published_salt_is_refused(salt, monkeypatch, tmp_path, capsys):
+    with pytest.raises(WeakSaltError):
+        DeidContext(salt=salt, reference_date=date(2025, 1, 1))
+    monkeypatch.setenv("CFP_DEID_SALT", salt)
+    monkeypatch.setenv("CFP_LAKEHOUSE_ROOT", str(tmp_path / "lake"))
+    reset_settings_cache()
+    from cfp.cli import silver
+
+    with pytest.raises(typer.Exit) as exited:
+        silver()
+    reset_settings_cache()
+    assert exited.value.exit_code == 2 and "CFP_DEID_SALT" in capsys.readouterr().err
+    assert not (tmp_path / "lake").exists()
+
+
+def _source_ids(value, out: set[str]) -> set[str]:
+    """Every id a FHIR resource carries: its own, the ones it references, and identifier values."""
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if key == "id" and isinstance(inner, str):
+                out.add(inner)
+            elif key == "reference" and isinstance(inner, str):
+                out.add(ref_id(inner.split("|")[-1]) or "")
+            elif key == "identifier":
+                out.update(i["value"] for i in inner if isinstance(i, dict) and "value" in i)
+            _source_ids(inner, out)
+    elif isinstance(value, list):
+        for inner in value:
+            _source_ids(inner, out)
+    return out
+
+
+def test_no_silver_value_is_a_bronze_identifier(lake):
+    bronze = lake.parquet_dataset("bronze", "resources").to_table(columns=["resource_id", "patient_id", "json"])
+    ids = set(bronze["resource_id"].to_pylist()) | set(bronze["patient_id"].to_pylist())
+    for raw in bronze["json"].to_pylist():
+        _source_ids(json.loads(raw), ids)
+    ids.discard("")
+    assert len(ids) > 20 * N_PATIENTS
+    for table in RESOURCE_TABLE.values():
+        got = lake.read_delta("silver", table)
+        for col in got.column_names:
+            if str(got.schema.field(col).type) != "string":
+                continue
+            for value in filter(None, got[col].to_pylist()):
+                assert not ({value} | set(re.split(r"[#/|;: ]", value))) & ids, (table, col, value)
 
 
 def test_silver_tables_exist_with_schemas_and_no_identifiers(lake):
@@ -114,11 +170,14 @@ def test_silver_dates_are_shifted_consistently_within_a_patient(lake, synthea_di
         "select patient_id, min(start_ts) a, max(start_ts) b from silver_encounters group by patient_id order by patient_id limit 1"
     ).fetchone()
     pid, first, last = row
-    off = ctx.offset_days(pid)
+    raw = next(
+        p
+        for p in lake.parquet_dataset("bronze", "manifest").to_table()["patient_id"].to_pylist()
+        if ctx.pseudo_id(p) == pid
+    )
+    off = ctx.offset_days(raw)
     # Compare with the source bundle: the span between first and last encounter is unchanged, the dates are not.
-    import json
-
-    src = next(p for p in (synthea_dir / "fhir").glob("*.json") if pid in p.name)
+    src = next(p for p in (synthea_dir / "fhir").glob("*.json") if raw in p.name)
     starts = sorted(
         e["resource"]["period"]["start"][:10]
         for e in json.loads(src.read_text())["entry"]
