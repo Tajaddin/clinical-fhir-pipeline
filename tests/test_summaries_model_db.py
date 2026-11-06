@@ -178,6 +178,36 @@ def test_supports_rejects_claims_that_contradict_the_cited_fact():
     )
     both = "amLODIPine 2.5 mg and lisinopril 10 mg were ordered on 2020-01-05."
     assert supports(both, stopped) is None and supports(both, stopped, lisinopril) is not None
+    assert supports("10 mg lisinopril and 2.5 mg amLODIPine, ordered 2020-01-05.", stopped, lisinopril) is not None
+    # ... but a number must be in a cited fact named next to it, not only in another cited one.
+    hemoglobin = Fact(
+        "Observation/h", "Observation", "results", None, "Hemoglobin [Mass/volume] in Blood: 11.9 g/dL on 2024-11-02"
+    )
+    assert supports("Hemoglobin A1c was 11.9% on 2024-11-02.", lab, hemoglobin) is None
+    assert supports("Hemoglobin 11.9 g/dL and hemoglobin A1c 6.1% on 2024-11-02.", lab, hemoglobin) is not None
+    assert supports("Hemoglobin A1c 6.1% and hemoglobin 11.9 g/dL on 2024-11-02.", lab, hemoglobin) is not None
+    simvastatin = Fact(
+        "MedicationRequest/s",
+        "MedicationRequest",
+        "medications",
+        None,
+        "Simvastatin 10 MG Oral Tablet (active), ordered 2019-02-18 for Hyperlipidemia (disorder)",
+    )
+    ibuprofen = Fact(
+        "MedicationRequest/i",
+        "MedicationRequest",
+        "medications",
+        None,
+        "Ibuprofen 200 MG Oral Tablet (completed), ordered 2015-06-24",
+    )
+    assert supports("Simvastatin 10 MG Oral Tablet since 2019.", simvastatin, ibuprofen) is not None
+    assert supports("Simvastatin 10 MG Oral Tablet since 2015.", simvastatin, ibuprofen) is None
+    diabetes = Fact(
+        "Condition/d", "Condition", "problems", None, "Diabetes mellitus type 2 (disorder), since 2015-06-01 (active)"
+    )
+    assert supports("Essential hypertension and type 2 diabetes, active.", problem, diabetes) is not None
+    assert supports("Essential hypertension since 2019 and diabetes since 2015.", problem, diabetes) is not None
+    assert supports("Essential hypertension since 2015 and diabetes since 2019.", problem, diabetes) is None
 
 
 def test_judge_summary_names_the_contradiction():

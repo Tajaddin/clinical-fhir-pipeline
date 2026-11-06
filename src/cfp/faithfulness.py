@@ -1,6 +1,7 @@
 """Faithfulness eval for summaries: every claim must cite a fact of that patient, repeat an anchor of it
 (the name, a value or a date), and contradict none of the facts it cites: each number and date in the claim
-must appear in them, and a negation or a status the facts do not state (resolved, still active) fails it.
+must appear in them (a number in a cited fact named next to it), and a negation or a status the facts do not
+state (resolved, still active) fails it.
 Deterministic, so it runs in CI; an optional LLM judge is reported next to it, never instead of it."""
 
 from __future__ import annotations
@@ -143,23 +144,48 @@ def _status(fact_text: str) -> str | None:
 
 def contradiction(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
     """The first thing the claim states that the cited facts do not: a number, a date, a negation, or a status
-    (over vs ongoing). A value may come from any cited fact; cue words the facts use themselves don't count."""
+    (over vs ongoing). A number must be in a cited fact named next to it, or in any cited fact when the claim
+    names none; cue words the facts use themselves don't count."""
     return _value_problem(claim_text, facts) or _wording_problem(claim_text, facts)
 
 
 def _value_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:
     fact_dates = [date.fromisoformat(d) for f in facts for d in _dates(f.text)]
-    fact_numbers = {float(n) for f in facts for n in NUMBER.findall(re.sub(r"\d{4}-\d{2}-\d{2}", " ", f.text))}
-    years = {d.year for d in fact_dates}
     written, rest = _claim_dates(PSEUDONYM.sub(" ", claim_text))
     for year, month, day in written:
         if not any(d.month == month and year in (None, d.year) and day in (None, d.day) for d in fact_dates):
             shown = "-".join("?" if p is None else f"{p:02d}" for p in (year, month, day))
             return f"date {shown} not in the cited facts"
-    for n in NUMBER.findall(rest):
-        if float(n) not in fact_numbers and not (re.fullmatch(r"\d{4}", n) and int(n) in years):
+    lowered = rest.lower()
+    for m in NUMBER.finditer(rest):
+        n = m.group(0)
+        if not any(_states(f, n) for f in facts):
             return f"value {n} not in the cited facts"
+        named = _named_next_to(lowered, m.start(), m.end(), facts)
+        if named and not any(_states(f, n) for f in named):
+            return f"value {n} not in the cited fact named next to it"
     return None
+
+
+def _states(fact: Fact, number: str) -> bool:
+    """The fact has this number as a value, or as the year of one of its dates."""
+    values = {float(v) for v in NUMBER.findall(re.sub(r"\d{4}-\d{2}-\d{2}", " ", fact.text))}
+    return float(number) in values or (
+        re.fullmatch(r"\d{4}", number) is not None and number in {d[:4] for d in _dates(fact.text)}
+    )
+
+
+def _named_next_to(text: str, start: int, end: int, facts: tuple[Fact, ...] | list[Fact]) -> list[Fact]:
+    """The cited facts whose name is written closest before the number, and those closest after it."""
+    before: dict[int, list[Fact]] = {}
+    after: dict[int, list[Fact]] = {}
+    for f in facts:
+        for token in set(_name_tokens(f.text)):
+            if (i := text.rfind(token, 0, start)) >= 0:
+                before.setdefault(i + len(token), []).append(f)
+            if (j := text.find(token, end)) >= 0:
+                after.setdefault(j, []).append(f)
+    return (before[max(before)] if before else []) + (after[min(after)] if after else [])
 
 
 def _wording_problem(claim_text: str, facts: tuple[Fact, ...] | list[Fact]) -> str | None:

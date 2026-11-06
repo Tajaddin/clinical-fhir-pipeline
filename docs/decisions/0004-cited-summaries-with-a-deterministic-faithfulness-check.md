@@ -41,7 +41,12 @@ eval.
   74% and 98% above were measured before this change. Negation and status are cue-word lists; a review
   found "doesn't have", "was excluded", "in remission" and lower-case or "June of 2019" dates passing, so
   contracted negations, those cues and those date forms were added. A contradiction worded without a
-  listed cue still passes.
+  listed cue still passes. A number may no longer come from any cited fact: it must be in a cited fact
+  whose name is written nearest to it, before or after, so "HbA1c 11.9%" citing an HbA1c of 6.1% and a
+  hemoglobin of 11.9 g/dL fails. Re-scoring the 1,113 claims of a qwen2.5:3b run turned 9 supported claims
+  unsupported: 7 took a value or a year from another cited fact, 1 gave a serum creatinine as blood, and 1
+  verdict was wrong ("influenza vaccines in 2022" after a pneumococcal vaccine: "vaccine" was the nearest
+  name).
 - **Local model.** The eval runs with qwen2.5:3b on Ollama (free, on the owner's GPU) and the API accepts
   any OpenAI-compatible endpoint; a deterministic fake model makes the tests and CI independent of a model
   server. The fake copies facts verbatim, so the checker must pass it at 100%, which it does; that is the
