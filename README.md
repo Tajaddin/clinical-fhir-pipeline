@@ -15,15 +15,17 @@ scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing i
 
 <!-- RESULTS -->
 - **Data quality:** 22 of 25 checks pass; 0 critical failures. Warnings: systolic blood pressure within 50-260 (2 of 31,503 rows); HbA1c within 3-20 (2,463 of 17,480 rows); no encounters after death (219 of 40,588 rows).
-- **Readmission model** (2,932 admissions from 1,141 patients, 15.5% readmitted within 30 days; patient-level split, 635 held-out admissions from 229 patients): champion **xgboost** with held-out **AUROC 0.832** (95% bootstrap CI 0.785 to 0.872), AUPRC 0.437, Brier 0.088, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.028); logistic_regression AUROC 0.798, ECE 0.031.
-- **Fairness (held-out):** AUROC female 0.838 vs male 0.823; selection rate at the 30% threshold female 21.5% vs male 17.6%. Age bands and race are in the model card.
+- **Readmission model** (2,903 admissions from 1,135 patients, 15.4% readmitted within 30 days; patient-level split, 633 held-out admissions from 227 patients): champion **xgboost** with held-out **AUROC 0.860** (95% bootstrap CI 0.787 to 0.939), AUPRC 0.445, Brier 0.097, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.039); logistic_regression AUROC 0.820, ECE 0.046.
+- **Fairness (held-out):** AUROC female 0.931 vs male 0.802; selection rate at the 30% threshold female 10.8% vs male 27.2%. Age bands and race are in the model card.
 - **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it.
-- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 473 claims, 0 of them flagged as contradictions.
+- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 505 claims, 0 of them flagged as contradictions.
 <!-- /RESULTS -->
 
 How they were measured: the cohort is `scripts/synthea.sh` (Synthea v4.0.0, seed 42, Tampa, Florida,
 reference and end date 2025-01-01). The model numbers are `cfp train` on a held-out fold split by patient,
-with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table).
+with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table), and
+the interval resamples patients. They were re-run on 2026-11-06 with a random `CFP_DEID_SALT`: patient ids
+are now keyed pseudonyms, so the salt decides which patients the split holds out.
 The faithfulness eval is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
 deterministic checker described below. The earlier qwen2.5:3b and qwen2.5:7b rates were scored by a checker
 that only tested whether a claim was about the fact it cites, so they were withdrawn; the eval has not been
@@ -99,9 +101,9 @@ gold and in `reports/data-quality.json`. The warnings the checks raise on this c
 by another inpatient admission within 30 days; in-hospital deaths and censored discharges excluded.
 Features are all available at discharge: prior utilisation, active chronic conditions, medications, the
 stay itself, latest vitals and labs, admission reason. Split by patient; champion chosen on validation;
-isotonic calibration; AUROC with a bootstrap interval, AUPRC, Brier, ECE, calibration slope and intercept,
-reliability curve; fairness by sex, age band, race and ethnicity; SHAP and coefficients. Every admission is
-scored into `gold.risk_scores` with its split and top three factors.
+isotonic calibration; AUROC with a patient-level bootstrap interval, AUPRC, Brier, ECE, calibration slope
+and intercept, reliability curve; fairness by sex, age band, race and ethnicity; SHAP and coefficients.
+Every admission is scored into `gold.risk_scores` with its split and top three factors.
 
 **Cited summaries (ADR 0004).** Each clinical resource becomes one fact with its reference. For each
 section (problems, medications, encounters, results, allergies, procedures, immunizations, care plans) the
@@ -126,7 +128,7 @@ promtool unit tests (`make alerts-test`).
 ## Tests
 
 ```bash
-make test          # 35 Python tests: bronze, de-identification, silver, quality, gold labels and features,
+make test          # 45 Python tests: bronze, de-identification, silver, quality, gold labels and features,
                    # model (160 factory patients), summaries, faithfulness checker, audit store, API
 make e2e-fixture   # deterministic cohort under data/e2e
 make serve-e2e     # API on :8110 serving it (separate terminal)
@@ -156,6 +158,10 @@ everything. Costs and steps are in `docs/DEPLOY.md`. Not applied yet.
 - One machine. DuckDB and delta-rs instead of a Spark cluster (ADR 0001); the tables are Spark-readable.
 - The faithfulness check is strict on paraphrase and blind to omissions; it measures copying fidelity, and
   the coverage figure (facts cited over facts shown) says how much of the record the summary used.
+- One held-out split, and the score depends on which patients it holds out: 20 patients carry 28% of the
+  modeled admissions (up to 68 each). With seeds 1 to 5 instead of 42 on the same cohort the champion's
+  AUROC ranged from 0.852 to 0.937 and logistic regression's from 0.734 to 0.922. Grouped cross-validation
+  would report that spread directly.
 - Chronic-condition flags are display-text patterns, not value sets.
 - Rate limiting is per process; the summary endpoint takes seconds with a local 3B model.
 

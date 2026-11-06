@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-10-17T15:18:58.175476",
+  "ran_at": "2026-11-06T06:20:13.101194",
   "checks": 25,
   "passed": 22,
   "critical_failures": [],
@@ -18,7 +18,7 @@
       "total": 2263,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "patients.sex is a known value",
@@ -29,7 +29,7 @@
       "total": 2263,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "patients.age_years within 0-90",
@@ -40,7 +40,7 @@
       "total": 2263,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "patients have no birth year over 89",
@@ -51,7 +51,7 @@
       "total": 91,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "encounters.patient_id resolves",
@@ -62,7 +62,7 @@
       "total": 132888,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "conditions.patient_id resolves",
@@ -73,7 +73,7 @@
       "total": 77819,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "observations.patient_id resolves",
@@ -84,7 +84,7 @@
       "total": 1657899,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "medication_requests.patient_id resolves",
@@ -95,7 +95,7 @@
       "total": 107991,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "conditions.encounter_id resolves",
@@ -106,7 +106,7 @@
       "total": 77819,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "observations.encounter_id resolves",
@@ -117,7 +117,7 @@
       "total": 1657899,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "medication_requests.encounter_id resolves",
@@ -128,7 +128,7 @@
       "total": 107991,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "procedures.encounter_id resolves",
@@ -139,7 +139,7 @@
       "total": 280897,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "encounters end after they start",
@@ -150,7 +150,7 @@
       "total": 132888,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "encounters have a start",
@@ -161,7 +161,7 @@
       "total": 132888,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "encounters.class_code is known",
@@ -172,7 +172,7 @@
       "total": 132888,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "conditions have a code and a display",
@@ -183,7 +183,7 @@
       "total": 77819,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "conditions resolve after onset",
@@ -194,7 +194,7 @@
       "total": 57594,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "medication requests have a display",
@@ -205,7 +205,7 @@
       "total": 107991,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "observations have a value",
@@ -216,7 +216,7 @@
       "total": 1139237,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "BMI within 8-100",
@@ -227,7 +227,7 @@
       "total": 27004,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "systolic blood pressure within 50-260",
@@ -238,7 +238,7 @@
       "total": 31503,
       "failing_share": 6.3e-05,
       "passed": false,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "diastolic blood pressure within 20-160",
@@ -249,7 +249,7 @@
       "total": 31503,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "heart rate within 20-250",
@@ -260,7 +260,7 @@
       "total": 30360,
       "failing_share": 0.0,
       "passed": true,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "HbA1c within 3-20",
@@ -271,7 +271,7 @@
       "total": 17480,
       "failing_share": 0.140904,
       "passed": false,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     },
     {
       "check_name": "no encounters after death",
@@ -282,7 +282,7 @@
       "total": 40588,
       "failing_share": 0.005396,
       "passed": false,
-      "ran_at": "2026-10-17T15:18:58.175476"
+      "ran_at": "2026-11-06T06:20:13.101194"
     }
   ]
 }
