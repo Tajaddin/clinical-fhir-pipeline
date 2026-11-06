@@ -1,12 +1,14 @@
 name: cfp
 
-# Host ports are published on 127.0.0.1 only. The dashboard's nginx has a fixed address so the API can trust
-# X-Forwarded-For from it and from nothing else.
+# Host ports are published on 127.0.0.1 only. The dashboard's nginx has a fixed address (.10) so the API can
+# trust X-Forwarded-For from it and from nothing else; other containers get addresses from .128 up, so none can
+# take it. CFP_SUBNET_PREFIX moves the /24 if it collides with a network on the host.
 networks:
   default:
     ipam:
       config:
-        - subnet: 172.30.110.0/24
+        - subnet: ${CFP_SUBNET_PREFIX:-172.30.110}.0/24
+          ip_range: ${CFP_SUBNET_PREFIX:-172.30.110}.128/25
 
 services:
   postgres:
@@ -38,7 +40,7 @@ services:
       CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
       CFP_EMBED_MODEL: ${CFP_EMBED_MODEL:-}
       CFP_LOG_LEVEL: ${CFP_LOG_LEVEL:-INFO}
-      CFP_FORWARDED_ALLOW_IPS: 172.30.110.10  # the dashboard's nginx; a direct caller cannot set its address
+      CFP_FORWARDED_ALLOW_IPS: ${CFP_SUBNET_PREFIX:-172.30.110}.10  # the dashboard's nginx; a direct caller cannot set its address
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ./data/lakehouse:/data/lakehouse:ro
@@ -60,7 +62,7 @@ services:
     ports: ["127.0.0.1:${DASHBOARD_PORT:-4210}:8080"]
     networks:
       default:
-        ipv4_address: 172.30.110.10
+        ipv4_address: ${CFP_SUBNET_PREFIX:-172.30.110}.10
     depends_on: [api]
 
   # The pipeline the way a scheduled job would run it: same image, against the mounted data (Synthea output
