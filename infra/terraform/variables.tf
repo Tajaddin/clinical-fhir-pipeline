@@ -58,12 +58,6 @@ variable "api_keys" {
   sensitive   = true
 }
 
-variable "deid_salt" {
-  description = "Secret salt used by the pipeline that wrote the lakehouse (kept with the API so a rerun matches)"
-  type        = string
-  sensitive   = true
-}
-
 variable "llm_base_url" {
   description = "OpenAI-compatible endpoint for summaries; empty = deterministic fake model"
   type        = string
