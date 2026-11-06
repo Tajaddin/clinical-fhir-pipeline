@@ -251,6 +251,19 @@ def test_llm_client_backs_off_on_rate_limits_and_server_errors(monkeypatch):
     assert len(calls) == 3 and sleeps == [0.5, 1.0]
 
 
+def test_llm_client_ignores_a_retry_after_it_cannot_sleep(monkeypatch):
+    ok = httpx.Response(200, json={"choices": [{"message": {"content": '{"claims": []}'}}]})
+    llm, calls, sleeps = _llm_answering(
+        [httpx.Response(429, headers={"Retry-After": "-1"}), httpx.Response(429, headers={"Retry-After": "nan"}), ok],
+        monkeypatch,
+    )
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 3 and sleeps == [0.5, 1.0]
+    llm, calls, sleeps = _llm_answering([httpx.Response(503, headers={"Retry-After": "0"}), ok], monkeypatch)
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 2 and sleeps == [0.0]
+
+
 # ---- audit log and summaries store -------------------------------------------------------------------------
 
 

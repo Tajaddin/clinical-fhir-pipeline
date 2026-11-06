@@ -4,6 +4,7 @@ deterministic fake for tests and CI."""
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -101,10 +102,12 @@ MAX_WAIT_S = 30.0
 
 
 def _retry_after(response: httpx.Response) -> float | None:
+    """Retry-After in seconds; None when absent or not a delay (negative, nan, an HTTP date)."""
     try:
-        return float(response.headers["retry-after"])
+        value = float(response.headers["retry-after"])
     except (KeyError, ValueError):
         return None
+    return value if math.isfinite(value) and value >= 0 else None
 
 
 @dataclass
@@ -156,7 +159,8 @@ class OpenAICompatible:
                 if exc.response.status_code not in RETRYABLE_STATUS:
                     raise RuntimeError(f"LLM call rejected: HTTP {exc.response.status_code}") from exc
                 last = exc
-                wait = _retry_after(exc.response) or wait
+                if (after := _retry_after(exc.response)) is not None:
+                    wait = after
             except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError) as exc:
                 last = exc
             log.warning("llm call failed", attempt=attempt, error=str(last)[:200])
