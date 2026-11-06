@@ -95,6 +95,18 @@ def _closers(candidate: str) -> str | None:
     return "".join("}" if ch == "{" else "]" for ch in reversed(stack))
 
 
+# Worth another try: timeouts, rate limits and server errors. Any other 4xx will fail the same way again.
+RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
+MAX_WAIT_S = 30.0
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    try:
+        return float(response.headers["retry-after"])
+    except (KeyError, ValueError):
+        return None
+
+
 @dataclass
 class OpenAICompatible:
     base_url: str
@@ -102,6 +114,7 @@ class OpenAICompatible:
     api_key: str = ""
     timeout_s: float = 120.0
     retries: int = 2
+    backoff_s: float = 1.0
     name: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -123,6 +136,7 @@ class OpenAICompatible:
         last: Exception | None = None
         for attempt in range(self.retries + 1):
             started = time.perf_counter()
+            wait = self.backoff_s * 2**attempt
             try:
                 r = self._client.post("/chat/completions", json=payload)
                 r.raise_for_status()
@@ -138,9 +152,16 @@ class OpenAICompatible:
                     raw=text,
                     repaired=repaired,
                 )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in RETRYABLE_STATUS:
+                    raise RuntimeError(f"LLM call rejected: HTTP {exc.response.status_code}") from exc
+                last = exc
+                wait = _retry_after(exc.response) or wait
             except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError) as exc:
                 last = exc
-                log.warning("llm call failed", attempt=attempt, error=str(exc)[:200])
+            log.warning("llm call failed", attempt=attempt, error=str(last)[:200])
+            if attempt < self.retries:
+                time.sleep(min(wait, MAX_WAIT_S))
         raise RuntimeError(f"LLM call failed after {self.retries + 1} attempts: {last}")
 
 

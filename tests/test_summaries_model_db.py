@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from cfp.db import audit_counts, current_summary, init_db, list_audit, make_engine, save_summary, write_audit
 from cfp.faithfulness import evaluate, judge_summary, supports
 from cfp.gold import build_gold
-from cfp.llm import Completion, FakeLLM, _extract_json
+from cfp.llm import Completion, FakeLLM, OpenAICompatible, _extract_json
 from cfp.summaries import SECTIONS, Fact, Retriever, Summary, build_prompt, load_facts, load_patient, summarize
 from conftest import REFERENCE
 
@@ -190,6 +191,40 @@ def test_extract_json_handles_fences_prose_and_truncation():
     with pytest.raises(json.JSONDecodeError):
         _extract_json("no json at all")
     assert isinstance(Completion(content={}, latency_s=0.1), Completion)
+
+
+def _llm_answering(responses: list[httpx.Response], monkeypatch) -> tuple[OpenAICompatible, list, list[float]]:
+    calls: list[httpx.Request] = []
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return responses.pop(0)
+
+    llm = OpenAICompatible("http://llm.test/v1", "m", retries=2, backoff_s=0.5)
+    llm._client = httpx.Client(base_url="http://llm.test/v1", transport=httpx.MockTransport(handler))
+    monkeypatch.setattr("cfp.llm.time.sleep", sleeps.append)
+    return llm, calls, sleeps
+
+
+def test_llm_client_does_not_retry_a_client_error(monkeypatch):
+    llm, calls, sleeps = _llm_answering([httpx.Response(401, json={"error": "bad key"})] * 3, monkeypatch)
+    with pytest.raises(RuntimeError, match="HTTP 401"):
+        llm.complete_json("system", "user")
+    assert len(calls) == 1 and sleeps == []
+
+
+def test_llm_client_backs_off_on_rate_limits_and_server_errors(monkeypatch):
+    ok = httpx.Response(200, json={"choices": [{"message": {"content": '{"claims": []}'}}]})
+    llm, calls, sleeps = _llm_answering(
+        [httpx.Response(503), httpx.Response(429, headers={"Retry-After": "7"}), ok], monkeypatch
+    )
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 3 and sleeps == [0.5, 7.0]
+    llm, calls, sleeps = _llm_answering([httpx.Response(500)] * 3, monkeypatch)
+    with pytest.raises(RuntimeError, match="after 3 attempts"):
+        llm.complete_json("system", "user")
+    assert len(calls) == 3 and sleeps == [0.5, 1.0]
 
 
 # ---- audit log and summaries store -------------------------------------------------------------------------
