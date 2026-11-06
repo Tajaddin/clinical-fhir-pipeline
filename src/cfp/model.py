@@ -92,12 +92,17 @@ def expected_calibration_error(y: np.ndarray, p: np.ndarray, bins: int = 10) -> 
     return float(ece), curve
 
 
-def bootstrap_auroc_ci(y: np.ndarray, p: np.ndarray, seed: int, n: int = 1000) -> tuple[float, float]:
+def bootstrap_auroc_ci(
+    y: np.ndarray, p: np.ndarray, groups: np.ndarray, seed: int, n: int = 1000
+) -> tuple[float, float]:
+    """Percentile interval from resampling patients with replacement, each with all of their admissions:
+    admissions of one patient are not independent, and resampling them one by one narrows the interval."""
     rng = np.random.default_rng(seed)
+    _, group_of = np.unique(groups, return_inverse=True)
+    members = [np.flatnonzero(group_of == g) for g in range(group_of.max() + 1)]
     scores = []
-    size = len(y)
     for _ in range(n):
-        i = rng.integers(0, size, size)
+        i = np.concatenate([members[g] for g in rng.integers(0, len(members), len(members))])
         if len(np.unique(y[i])) < 2:
             continue
         scores.append(roc_auc_score(y[i], p[i]))
@@ -113,11 +118,11 @@ def calibration_fit(y: np.ndarray, p: np.ndarray) -> tuple[float, float]:
     return float(lr.coef_[0][0]), float(lr.intercept_[0])
 
 
-def metrics_for(y: np.ndarray, p: np.ndarray, seed: int) -> dict[str, Any]:
+def metrics_for(y: np.ndarray, p: np.ndarray, groups: np.ndarray, seed: int) -> dict[str, Any]:
     if len(np.unique(y)) < 2:
         return {"n": len(y), "positives": int(y.sum())}
     ece, curve = expected_calibration_error(y, p)
-    lo, hi = bootstrap_auroc_ci(y, p, seed)
+    lo, hi = bootstrap_auroc_ci(y, p, groups, seed)
     slope, intercept = calibration_fit(y, p)
     return {
         "n": len(y),
@@ -210,6 +215,7 @@ def train(
     y_train = cohort.loc[split.train, "readmitted"].astype(int).to_numpy()
     y_val = cohort.loc[split.val, "readmitted"].astype(int).to_numpy()
     y_test = cohort.loc[split.test, "readmitted"].astype(int).to_numpy()
+    patients_test = cohort.loc[split.test, "patient_id"].to_numpy()
     features = list(x_train.columns)
 
     lr = _lr().fit(x_train, y_train)
@@ -225,8 +231,8 @@ def train(
         p_test = iso.predict(p_test_raw)
         results[name] = {
             "validation": {"auroc": float(roc_auc_score(y_val, p_val)) if len(np.unique(y_val)) == 2 else None},
-            "test_uncalibrated": metrics_for(y_test, p_test_raw, seed),
-            "test": metrics_for(y_test, p_test, seed),
+            "test_uncalibrated": metrics_for(y_test, p_test_raw, patients_test, seed),
+            "test": metrics_for(y_test, p_test, patients_test, seed),
         }
     champion = max(results, key=lambda k: results[k]["validation"]["auroc"] or 0.0)
     best = models[champion]

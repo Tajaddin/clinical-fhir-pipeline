@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 
 import httpx
+import numpy as np
 import pytest
 
 from cfp.db import audit_counts, current_summary, init_db, list_audit, make_engine, save_summary, write_audit
 from cfp.faithfulness import evaluate, judge_summary, supports
 from cfp.gold import build_gold
 from cfp.llm import Completion, FakeLLM, OpenAICompatible, _extract_json
+from cfp.model import bootstrap_auroc_ci
 from cfp.summaries import SECTIONS, Fact, Retriever, Summary, build_prompt, load_facts, load_patient, summarize
 from conftest import REFERENCE
 
@@ -280,6 +282,16 @@ def test_audit_log_and_summary_store_roundtrip(tmp_path):
 
 
 # ---- model -------------------------------------------------------------------------------------------------
+
+
+def test_bootstrap_interval_resamples_patients_not_admissions():
+    rng = np.random.default_rng(0)
+    y_patient = rng.integers(0, 2, 60)
+    p_patient = 0.3 * y_patient + 0.7 * rng.random(60)
+    y, p = np.repeat(y_patient, 8), np.repeat(p_patient, 8)  # eight identical admissions per patient
+    lo_adm, hi_adm = bootstrap_auroc_ci(y, p, np.arange(len(y)), seed=1)
+    lo_pat, hi_pat = bootstrap_auroc_ci(y, p, np.repeat(np.arange(60), 8), seed=1)
+    assert lo_pat < lo_adm and hi_pat > hi_adm and hi_pat - lo_pat > 2 * (hi_adm - lo_adm)
 
 
 def test_train_produces_calibrated_metrics_fairness_scores_and_artifacts(trained):
