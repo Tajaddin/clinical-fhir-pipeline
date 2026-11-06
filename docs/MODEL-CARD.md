@@ -34,6 +34,17 @@ discrimination below says something about the pipeline, not about real hospitals
 | logistic_regression | 0.854 | 0.820 | 0.746-0.895 | 0.348 | 0.103 | 0.050 | 0.046 | 0.79 / 0.16 |
 | xgboost (champion) | 0.905 | 0.860 | 0.787-0.939 | 0.445 | 0.097 | 0.039 | 0.040 | 0.34 / -0.56 |
 
+The test fold above is one patient split, and a few patients with many admissions move its score. The
+same fitting and calibration on other patient splits of this cohort (`split_sensitivity` in the metrics):
+
+| split seed | logistic_regression test AUROC | xgboost test AUROC |
+|---|---|---|
+| 1 | 0.734 | 0.852 |
+| 2 | 0.836 | 0.875 |
+| 3 | 0.884 | 0.892 |
+| 4 | 0.808 | 0.883 |
+| 5 | 0.922 | 0.937 |
+
 Reliability of the champion after isotonic calibration (10 equal-width bins):
 
 | predicted | n | mean predicted | observed |

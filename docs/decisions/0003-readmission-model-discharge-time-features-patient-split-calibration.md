@@ -49,4 +49,6 @@ place to leak the future into the features and to report a flattering AUROC on a
   (up to 30 days after it) gave patients shifted back windows without follow-up. That censors 31 or 32
   admissions instead of 3, and with the keyed pseudonyms of ADR 0002 a different split. The champion's
   AUROC moved by more than 0.1 between the splits measured on this cohort (0.832 to 0.949), so "about
-  0.83" above describes one split, not the model.
+  0.83" above describes one split, not the model. `cfp train` now re-fits both models the same way on
+  five other patient splits (seeds 1 to 5) and records their test AUROC as `split_sensitivity`; the
+  README and the model card report that range next to the headline split.

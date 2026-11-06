@@ -29,6 +29,14 @@ def num(x: float | None, digits: int = 3) -> str:
     return "n/a" if x is None else f"{x:.{digits}f}"
 
 
+def spread(m: dict, model: str) -> str:
+    """Range of a model's held-out AUROC over the other patient splits `cfp train` re-measures it on."""
+    values = [v for v in (m.get("split_sensitivity") or {}).get(model, []) if v is not None]
+    if not values:
+        return ""
+    return f"{num(min(values))} to {num(max(values))} over {len(values)} other patient splits"
+
+
 def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
     lines = []
     if q:
@@ -52,9 +60,12 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
         lines.append(
             f"- **Readmission model** ({c['admissions_modeled']:,} admissions from {c['patients_modeled']:,} patients, "
             f"{pct(c['prevalence'])} readmitted within 30 days; patient-level split, {c['test']:,} held-out admissions from {c['test_patients']:,} patients): "
-            f"champion **{champ}** with held-out **AUROC {num(t['auroc'])}** (95% bootstrap CI {num(t['auroc_ci95'][0])} to {num(t['auroc_ci95'][1])}), "
-            f"AUPRC {num(t['auprc'])}, Brier {num(t['brier'])}, **ECE {num(t['ece'])}** after isotonic calibration "
-            f"(uncalibrated ECE {num(m['models'][champ]['test_uncalibrated']['ece'])}); {other} AUROC {num(o['auroc'])}, ECE {num(o['ece'])}."
+            f"champion **{champ}** with held-out **AUROC {num(t['auroc'])}** on this split (95% bootstrap CI {num(t['auroc_ci95'][0])} to {num(t['auroc_ci95'][1])}"
+            + (f"; **{spread(m, champ)}**" if spread(m, champ) else "")
+            + f"), AUPRC {num(t['auprc'])}, Brier {num(t['brier'])}, **ECE {num(t['ece'])}** after isotonic calibration "
+            f"(uncalibrated ECE {num(m['models'][champ]['test_uncalibrated']['ece'])}); {other} AUROC {num(o['auroc'])}"
+            + (f" ({spread(m, other)})" if spread(m, other) else "")
+            + f", ECE {num(o['ece'])}."
         )
         sex = {r["group"]: r for r in m["fairness"]["sex"]}
         if {"female", "male"} <= set(sex) and all("auroc" in sex[g] for g in ("female", "male")):
@@ -124,6 +135,19 @@ def model_card(m: dict, f: dict | None) -> str:
         f"| {d['feature']} | {d['coefficient']:+.3f} |"
         for d in m["explanations"]["logistic_regression_coefficients"][:12]
     )
+    sens = m.get("split_sensitivity") or {}
+    splits = ""
+    if sens.get("seeds"):
+        rows_by_seed = "\n".join(
+            f"| {seed} | {num(sens['logistic_regression'][i])} | {num(sens['xgboost'][i])} |"
+            for i, seed in enumerate(sens["seeds"])
+        )
+        splits = (
+            "The test fold above is one patient split, and a few patients with many admissions move its score. The\n"
+            "same fitting and calibration on other patient splits of this cohort (`split_sensitivity` in the metrics):\n\n"
+            "| split seed | logistic_regression test AUROC | xgboost test AUROC |\n|---|---|---|\n"
+            f"{rows_by_seed}\n\n"
+        )
     reliability = "\n".join(
         f"| {b['lower']:.1f}-{b['upper']:.1f} | {b['n']} | {pct(b['mean_predicted'])} | {pct(b['observed'])} |"
         for b in t["reliability"]
@@ -170,7 +194,7 @@ discrimination below says something about the pipeline, not about real hospitals
 |---|---|---|---|---|---|---|---|---|
 {chr(10).join(rows)}
 
-Reliability of the champion after isotonic calibration (10 equal-width bins):
+{splits}Reliability of the champion after isotonic calibration (10 equal-width bins):
 
 | predicted | n | mean predicted | observed |
 |---|---|---|---|

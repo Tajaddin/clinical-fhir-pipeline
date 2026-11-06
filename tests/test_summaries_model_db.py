@@ -11,7 +11,7 @@ from cfp.db import audit_counts, current_summary, init_db, list_audit, make_engi
 from cfp.faithfulness import evaluate, judge_summary, supports
 from cfp.gold import build_gold
 from cfp.llm import Completion, FakeLLM, OpenAICompatible, _extract_json
-from cfp.model import bootstrap_auroc_ci
+from cfp.model import bootstrap_auroc_ci, split_sensitivity
 from cfp.summaries import SECTIONS, Fact, Retriever, Summary, build_prompt, load_facts, load_patient, summarize
 from conftest import REFERENCE
 
@@ -390,6 +390,15 @@ def test_train_produces_calibrated_metrics_fairness_scores_and_artifacts(trained
         assert t["auroc_ci95"][0] <= t["auroc"] <= t["auroc_ci95"][1]
     assert {r["group"] for r in metrics["fairness"]["sex"]} <= {"male", "female"}
     assert metrics["explanations"]["xgboost_mean_abs_shap"][0]["mean_abs_shap"] >= 0
+    # The other splits are measured the way the headline split is: the trained seed reproduces its AUROC.
+    sensitivity = metrics["split_sensitivity"]
+    assert sensitivity["seeds"] == [2, 3, 4, 5]
+    assert all(len(sensitivity[name]) == 4 for name in ("logistic_regression", "xgboost"))
+    admissions = big_lake.read_delta("gold", "admissions").to_pandas()
+    modeled = admissions[admissions["in_modeling_cohort"]].reset_index(drop=True)
+    again = split_sensitivity(modeled, [1], test_size=0.2, val_size=0.15)
+    for name in ("logistic_regression", "xgboost"):
+        assert again[name] == [pytest.approx(metrics["models"][name]["test"]["auroc"])]
     scores = big_lake.read_delta("gold", "risk_scores").to_pandas()
     assert len(scores) == cohort["admissions_total"] and scores["risk"].between(0, 1).all()
     assert set(scores["split"]) >= {"train", "test"} and json.loads(scores["top_factors"].iloc[0])

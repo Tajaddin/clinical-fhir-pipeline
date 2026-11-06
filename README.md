@@ -8,14 +8,14 @@ service with API keys, per-key rate limits and an audit log of every access serv
 Docker Compose for local runs, Terraform for Azure, GitHub Actions that regenerate a cohort and run the
 whole pipeline on every push.
 
-**Status: built and verified locally (2026-10-17); not deployed.** All numbers below come from the committed
-scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing is production traffic.
+**Status: built 2026-10-17, re-run locally 2026-11-06; not deployed.** All numbers below come from the
+committed scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing is production traffic.
 
 ## Results
 
 <!-- RESULTS -->
 - **Data quality:** 22 of 25 checks pass; 0 critical failures. Warnings: systolic blood pressure within 50-260 (2 of 31,503 rows); HbA1c within 3-20 (2,463 of 17,480 rows); no encounters after death (219 of 40,588 rows).
-- **Readmission model** (2,903 admissions from 1,135 patients, 15.4% readmitted within 30 days; patient-level split, 633 held-out admissions from 227 patients): champion **xgboost** with held-out **AUROC 0.860** (95% bootstrap CI 0.787 to 0.939), AUPRC 0.445, Brier 0.097, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.039); logistic_regression AUROC 0.820, ECE 0.046.
+- **Readmission model** (2,903 admissions from 1,135 patients, 15.4% readmitted within 30 days; patient-level split, 633 held-out admissions from 227 patients): champion **xgboost** with held-out **AUROC 0.860** on this split (95% bootstrap CI 0.787 to 0.939; **0.852 to 0.937 over 5 other patient splits**), AUPRC 0.445, Brier 0.097, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.039); logistic_regression AUROC 0.820 (0.734 to 0.922 over 5 other patient splits), ECE 0.046.
 - **Fairness (held-out):** AUROC female 0.931 vs male 0.802; selection rate at the 30% threshold female 10.8% vs male 27.2%. Age bands and race are in the model card.
 - **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it.
 - **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 505 claims, 0 of them flagged as contradictions.
@@ -25,7 +25,9 @@ How they were measured: the cohort is `scripts/synthea.sh` (Synthea v4.0.0, seed
 reference and end date 2025-01-01). The model numbers are `cfp train` on a held-out fold split by patient,
 with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table), and
 the interval resamples patients. They were re-run on 2026-11-06 with a random `CFP_DEID_SALT`: patient ids
-are now keyed pseudonyms, so the salt decides which patients the split holds out.
+are now keyed pseudonyms, so the salt decides which patients the split holds out, and that salt is not
+published. `cfp train` therefore also re-fits both models on five other patient splits (seeds 1 to 5) and
+reports their range; quote the range, not the single split.
 The faithfulness eval is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
 deterministic checker described below. The earlier qwen2.5:3b and qwen2.5:7b rates were scored by a checker
 that only tested whether a claim was about the fact it cites, so they were withdrawn; the eval has not been
@@ -162,10 +164,10 @@ everything. Costs and steps are in `docs/DEPLOY.md`. Not applied yet.
   and status are lists of cue words, so a contradiction worded without one of them still passes. A number
   is checked against the cited facts named nearest to it on either side, so one written between two names
   is accepted from either.
-- One held-out split, and the score depends on which patients it holds out: 20 patients carry 28% of the
-  modeled admissions (up to 68 each). With seeds 1 to 5 instead of 42 on the same cohort the champion's
-  AUROC ranged from 0.852 to 0.937 and logistic regression's from 0.734 to 0.922. Grouped cross-validation
-  would report that spread directly.
+- The score depends on which patients the test fold holds out: 20 patients carry 28% of the modeled
+  admissions (up to 68 each), which is why the results give the range over five other patient splits next
+  to the one the model card describes. Those are repeated hold-outs, not cross-validation folds, so a
+  patient can be in several test folds.
 - Chronic-condition flags are display-text patterns, not value sets.
 - Rate limiting is per process; the summary endpoint takes seconds with a local 3B model.
 

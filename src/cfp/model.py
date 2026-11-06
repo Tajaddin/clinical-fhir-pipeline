@@ -28,6 +28,9 @@ from cfp.lake import Lake
 
 MODEL_VERSION = "readmission-v1"
 TOP_REASONS = 10
+# Other patient splits the held-out AUROC is re-measured on: one split says little when a few patients carry
+# a large share of the admissions.
+SENSITIVITY_SEEDS = (1, 2, 3, 4, 5)
 NUMERIC = ["age_at_admission", "los_days", *HISTORY_COLUMNS, *LAB_COLUMNS]
 BINARY = [*FLAG_COLUMNS, "sex_female"]
 
@@ -193,6 +196,36 @@ def _xgb(seed: int):
     )
 
 
+def _folds(cohort: pd.DataFrame, split: Split) -> tuple[list[pd.DataFrame], list[np.ndarray], list[str]]:
+    """Features and labels of the train, validation and test folds; the reason vocabulary comes from train."""
+    x_train, reasons = build_features(cohort.loc[split.train])
+    xs = [x_train, *(build_features(cohort.loc[idx], reasons)[0] for idx in (split.val, split.test))]
+    ys = [cohort.loc[idx, "readmitted"].astype(int).to_numpy() for idx in (split.train, split.val, split.test)]
+    return xs, ys, reasons
+
+
+def _fit_models(x_train: pd.DataFrame, y_train: np.ndarray, x_val: pd.DataFrame, y_val: np.ndarray, seed: int):
+    return {
+        "logistic_regression": _lr().fit(x_train, y_train),
+        "xgboost": _xgb(seed).fit(x_train, y_train, eval_set=[(x_val, y_val)], verbose=False),
+    }
+
+
+def split_sensitivity(cohort: pd.DataFrame, seeds: list[int], test_size: float, val_size: float) -> dict[str, Any]:
+    """Held-out AUROC of both models, fitted and calibrated as in `train`, on other patient splits of the
+    same cohort (None where a test fold has one class only)."""
+    out: dict[str, Any] = {"seeds": seeds, "logistic_regression": [], "xgboost": []}
+    for s in seeds:
+        (x_train, x_val, x_test), (y_train, y_val, y_test), _ = _folds(
+            cohort, split_by_patient(cohort, test_size, val_size, s)
+        )
+        for name, m in _fit_models(x_train, y_train, x_val, y_val, s).items():
+            iso = IsotonicRegression(out_of_bounds="clip").fit(m.predict_proba(x_val)[:, 1], y_val)
+            p_test = iso.predict(m.predict_proba(x_test)[:, 1])
+            out[name].append(float(roc_auc_score(y_test, p_test)) if len(np.unique(y_test)) == 2 else None)
+    return out
+
+
 def train(
     lake: Lake,
     reports_dir: Path,
@@ -209,18 +242,12 @@ def train(
             f"cohort too small to model: {len(cohort)} admissions, {int(cohort['readmitted'].sum())} readmissions"
         )
     split = split_by_patient(cohort, test_size, val_size, seed)
-    x_train, reasons = build_features(cohort.loc[split.train])
-    x_val, _ = build_features(cohort.loc[split.val], reasons)
-    x_test, _ = build_features(cohort.loc[split.test], reasons)
-    y_train = cohort.loc[split.train, "readmitted"].astype(int).to_numpy()
-    y_val = cohort.loc[split.val, "readmitted"].astype(int).to_numpy()
-    y_test = cohort.loc[split.test, "readmitted"].astype(int).to_numpy()
+    (x_train, x_val, x_test), (y_train, y_val, y_test), reasons = _folds(cohort, split)
     patients_test = cohort.loc[split.test, "patient_id"].to_numpy()
     features = list(x_train.columns)
 
-    lr = _lr().fit(x_train, y_train)
-    xgb = _xgb(seed).fit(x_train, y_train, eval_set=[(x_val, y_val)], verbose=False)
-    models: dict[str, Any] = {"logistic_regression": lr, "xgboost": xgb}
+    models = _fit_models(x_train, y_train, x_val, y_val, seed)
+    lr, xgb = models["logistic_regression"], models["xgboost"]
     results: dict[str, Any] = {}
     calibrators: dict[str, IsotonicRegression] = {}
     for name, m in models.items():
@@ -326,6 +353,9 @@ def train(
         "fairness": fairness,
         "explanations": explanations,
         "xgboost_best_iteration": int(getattr(xgb, "best_iteration", 0) or 0),
+        "split_sensitivity": split_sensitivity(
+            cohort, [s for s in SENSITIVITY_SEEDS if s != seed], test_size, val_size
+        ),
     }
     reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / "model-metrics.json").write_text(json.dumps(metrics, indent=2, default=_jsonable), encoding="utf-8")
