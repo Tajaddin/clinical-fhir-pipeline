@@ -171,8 +171,8 @@ everything. Costs and steps are in `docs/DEPLOY.md`. Not applied yet.
 - The faithfulness check is strict on paraphrase and blind to omissions; it measures copying fidelity, and
   the coverage figure (facts cited over facts shown) says how much of the record the summary used. Negation
   and status are lists of cue words, so a contradiction worded without one of them still passes. A number
-  is checked against the cited facts named nearest to it on either side, so one written between two names
-  is accepted from either.
+  is checked against the cited facts named nearest before it or right after it or its unit, so one written
+  far from its own fact's name is read as another fact's and flagged.
 - The score depends on which patients the test fold holds out: 20 patients carry 28% of the modeled
   admissions (up to 68 each), which is why the results give the range over five other patient splits next
   to the one the model card describes. Those are repeated hold-outs, not cross-validation folds, so a
