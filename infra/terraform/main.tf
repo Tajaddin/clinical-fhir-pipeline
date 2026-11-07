@@ -132,13 +132,11 @@ resource "azurerm_container_app" "api" {
     name  = "api-keys"
     value = var.api_keys
   }
+  # The account key can read and write the whole account. Only silver and gold are uploaded
+  # (scripts/deploy.sh), so it reaches no identifiers; docs/DEPLOY.md has the read-only identity step.
   secret {
     name  = "storage-key"
     value = azurerm_storage_account.lake.primary_access_key
-  }
-  secret {
-    name  = "deid-salt"
-    value = var.deid_salt
   }
   dynamic "secret" {
     for_each = toset(var.registry_server == "" ? [] : ["registry"])
@@ -185,10 +183,6 @@ resource "azurerm_container_app" "api" {
       env {
         name        = "AZURE_STORAGE_ACCOUNT_KEY"
         secret_name = "storage-key"
-      }
-      env {
-        name        = "CFP_DEID_SALT"
-        secret_name = "deid-salt"
       }
       env {
         name  = "AZURE_STORAGE_ACCOUNT_NAME"

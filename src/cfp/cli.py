@@ -57,11 +57,17 @@ def bronze() -> None:
 @app.command()
 def silver() -> None:
     """Typed, de-identified Delta tables from bronze."""
+    from cfp.deid import WeakSaltError
     from cfp.silver import build_silver, context_from_settings
 
     s = settings()
+    try:
+        ctx = context_from_settings(s.deid_salt, s.reference_date, s.date_shift_max_days)
+    except WeakSaltError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
     started = time.time()
-    stats = build_silver(_lake(), context_from_settings(s.deid_salt, s.reference_date, s.date_shift_max_days))
+    stats = build_silver(_lake(), ctx)
     _echo("silver", stats.__dict__, started)
 
 
@@ -86,7 +92,7 @@ def gold() -> None:
 
     s = settings()
     started = time.time()
-    stats = build_gold(_lake(), s.readmission_days, date.fromisoformat(s.reference_date))
+    stats = build_gold(_lake(), s.readmission_days, date.fromisoformat(s.reference_date), s.date_shift_max_days)
     _echo("gold", stats.__dict__, started)
 
 
@@ -160,8 +166,8 @@ def eval_summaries(patients: int = 40, llm_judge: bool = False) -> None:
 
 
 @app.command()
-def serve(host: str = "0.0.0.0", port: int = 8000) -> None:  # noqa: S104
-    """Run the API."""
+def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Run the API (loopback only unless --host says otherwise; the image passes 0.0.0.0)."""
     import os
 
     import uvicorn

@@ -211,7 +211,7 @@ def extract_patient(r: dict, ctx: DeidContext) -> list[dict]:
     marital = r.get("maritalStatus") or {}
     return [
         {
-            "patient_id": pid,
+            "patient_id": ctx.pseudo_id(pid),
             "pseudonym": pseudonym(pid, ctx.salt),
             "sex": r.get("gender"),
             "birth_year": None if (over_89 or not birth) else int(birth[:4]),
@@ -237,8 +237,8 @@ def extract_encounter(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     org = (r.get("serviceProvider") or {}).get("reference")
     return [
         {
-            "encounter_id": r["id"],
-            "patient_id": pid,
+            "encounter_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
             "class_code": (r.get("class") or {}).get("code"),
             "status": r.get("status"),
             "type_code": type_code,
@@ -248,7 +248,7 @@ def extract_encounter(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
             "length_hours": _hours(start, end),
             "reason_code": reason_code,
             "reason_display": reason_display,
-            "organization_id": org.split("|")[-1] if org else None,
+            "organization_id": ctx.pseudo_ref(org.split("|")[-1] if org else None),
         }
     ]
 
@@ -258,9 +258,9 @@ def extract_condition(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     _, code, display = coding(r.get("code"))
     return [
         {
-            "condition_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "condition_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "category": _first_code(r.get("category"))[0],
             "code": code,
             "display": display,
@@ -290,8 +290,9 @@ def _value(obs: dict) -> tuple[float | None, str | None, str | None]:
 
 def extract_observation(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     off = ctx.offset_days(pid)
+    oid = ctx.pseudo_id(r["id"])
     effective = shift_ts(r.get("effectiveDateTime") or r.get("issued"), off)
-    encounter_id = ref_id((r.get("encounter") or {}).get("reference"))
+    encounter_id = ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference")))
     category = _first_code(r.get("category"))[0]
     rows = []
     _, code, display = coding(r.get("code"))
@@ -299,8 +300,8 @@ def extract_observation(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     components = r.get("component") or []
     rows.append(
         {
-            "observation_id": r["id"],
-            "patient_id": pid,
+            "observation_id": oid,
+            "patient_id": ctx.pseudo_id(pid),
             "encounter_id": encounter_id,
             "category": category,
             "code": code,
@@ -317,8 +318,8 @@ def extract_observation(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
         cnum, cunit, ctext = _value(comp)
         rows.append(
             {
-                "observation_id": f"{r['id']}#{i}",
-                "patient_id": pid,
+                "observation_id": f"{oid}#{i}",
+                "patient_id": ctx.pseudo_id(pid),
                 "encounter_id": encounter_id,
                 "category": category,
                 "code": ccode,
@@ -327,7 +328,7 @@ def extract_observation(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
                 "value_num": cnum,
                 "unit": cunit,
                 "value_text": ctext,
-                "component_of": r["id"],
+                "component_of": oid,
             }
         )
     return rows
@@ -345,9 +346,9 @@ def extract_medication_request(r: dict, ctx: DeidContext, pid: str) -> list[dict
     _, code, display = coding(r.get("medicationCodeableConcept"))
     return [
         {
-            "medication_request_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "medication_request_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "code": code,
             "display": display,
             "status": r.get("status"),
@@ -365,9 +366,9 @@ def extract_procedure(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     _, code, display = coding(r.get("code"))
     return [
         {
-            "procedure_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "procedure_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "code": code,
             "display": display,
             "status": r.get("status"),
@@ -383,9 +384,9 @@ def extract_immunization(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     _, code, display = coding(r.get("vaccineCode"))
     return [
         {
-            "immunization_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "immunization_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "code": code,
             "display": display,
             "status": r.get("status"),
@@ -406,8 +407,8 @@ def extract_allergy(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     categories = r.get("category") or []
     return [
         {
-            "allergy_id": r["id"],
-            "patient_id": pid,
+            "allergy_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
             "code": code,
             "display": display,
             "category": categories[0] if categories else None,
@@ -424,9 +425,9 @@ def extract_diagnostic_report(r: dict, ctx: DeidContext, pid: str) -> list[dict]
     _, code, display = coding(r.get("code"))
     return [
         {
-            "report_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "report_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "category": _first_code(r.get("category"))[0],
             "code": code,
             "display": display,
@@ -443,9 +444,9 @@ def extract_careplan(r: dict, ctx: DeidContext, pid: str) -> list[dict]:
     addresses = [a.get("display") for a in r.get("addresses") or [] if a.get("display")]
     return [
         {
-            "careplan_id": r["id"],
-            "patient_id": pid,
-            "encounter_id": ref_id((r.get("encounter") or {}).get("reference")),
+            "careplan_id": ctx.pseudo_id(r["id"]),
+            "patient_id": ctx.pseudo_id(pid),
+            "encounter_id": ctx.pseudo_ref(ref_id((r.get("encounter") or {}).get("reference"))),
             "category_code": cat_code,
             "category_display": cat_display,
             "status": r.get("status"),

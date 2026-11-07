@@ -1,5 +1,15 @@
 name: cfp
 
+# Host ports are published on 127.0.0.1 only. The dashboard's nginx has a fixed address (.10) so the API can
+# trust X-Forwarded-For from it and from nothing else; other containers get addresses from .128 up, so none can
+# take it. CFP_SUBNET_PREFIX moves the /24 if it collides with a network on the host.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${CFP_SUBNET_PREFIX:-172.30.110}.0/24
+          ip_range: ${CFP_SUBNET_PREFIX:-172.30.110}.128/25
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -7,7 +17,7 @@ services:
       POSTGRES_USER: cfp
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cfp}
       POSTGRES_DB: cfp
-    ports: ["${POSTGRES_PORT:-5437}:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5437}:5432"]
     volumes: [pg:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cfp -d cfp"]
@@ -22,7 +32,7 @@ services:
       CFP_DATABASE_URL: postgresql+psycopg://cfp:${POSTGRES_PASSWORD:-cfp}@postgres:5432/cfp
       CFP_LAKEHOUSE_ROOT: /data/lakehouse
       CFP_REPORTS_DIR: /app/reports
-      CFP_API_KEYS: ${CFP_API_KEYS:-local-analyst-key:analyst,local-admin-key:admin}
+      CFP_API_KEYS: ${CFP_API_KEYS:-}  # key:role pairs from .env; no key works until you set them
       CFP_RATE_LIMIT: ${CFP_RATE_LIMIT:-60/minute}
       CFP_CORS_ORIGINS: ${CFP_CORS_ORIGINS:-http://localhost:4210,http://localhost:4200}
       # Ollama on the host by default; empty = deterministic fake model
@@ -30,12 +40,12 @@ services:
       CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
       CFP_EMBED_MODEL: ${CFP_EMBED_MODEL:-}
       CFP_LOG_LEVEL: ${CFP_LOG_LEVEL:-INFO}
-      CFP_FORWARDED_ALLOW_IPS: "*"  # the dashboard's nginx is the only way in on the compose network
+      CFP_FORWARDED_ALLOW_IPS: ${CFP_SUBNET_PREFIX:-172.30.110}.10  # the dashboard's nginx; a direct caller cannot set its address
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ./data/lakehouse:/data/lakehouse:ro
       - ./reports:/app/reports:ro
-    ports: ["${API_PORT:-8110}:8000"]
+    ports: ["127.0.0.1:${API_PORT:-8110}:8000"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -49,7 +59,10 @@ services:
   dashboard:
     build: ./dashboard
     image: cfp/dashboard:local
-    ports: ["${DASHBOARD_PORT:-4210}:80"]
+    ports: ["127.0.0.1:${DASHBOARD_PORT:-4210}:8080"]
+    networks:
+      default:
+        ipv4_address: ${CFP_SUBNET_PREFIX:-172.30.110}.10
     depends_on: [api]
 
   # The pipeline the way a scheduled job would run it: same image, against the mounted data (Synthea output
@@ -62,7 +75,7 @@ services:
       CFP_SYNTHEA_DIR: /data/synthea
       CFP_LAKEHOUSE_ROOT: /data/lakehouse
       CFP_REPORTS_DIR: /app/reports
-      CFP_DEID_SALT: ${CFP_DEID_SALT:-change-me-to-a-long-random-string}
+      CFP_DEID_SALT: ${CFP_DEID_SALT:-}  # required: set it in .env (openssl rand -hex 32)
       CFP_LLM_BASE_URL: ${CFP_LLM_BASE_URL-http://host.docker.internal:11434/v1}
       CFP_LLM_MODEL: ${CFP_LLM_MODEL:-qwen2.5:3b}
       MLFLOW_TRACKING_URI: sqlite:////data/mlflow.db
@@ -78,14 +91,14 @@ services:
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
-    ports: ["${PROMETHEUS_PORT:-9105}:9090"]
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-9105}:9090"]
     extra_hosts: ["host.docker.internal:host-gateway"]
 
   alertmanager:
     profiles: [observability]
     image: prom/alertmanager:v0.28.1
     volumes: ["./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
-    ports: ["${ALERTMANAGER_PORT:-9106}:9093"]
+    ports: ["127.0.0.1:${ALERTMANAGER_PORT:-9106}:9093"]
 
   grafana:
     profiles: [observability]
@@ -97,7 +110,7 @@ services:
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    ports: ["${GRAFANA_PORT:-3007}:3000"]
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3007}:3000"]
     depends_on: [prometheus]
 
 volumes:

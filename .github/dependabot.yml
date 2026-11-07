@@ -6,6 +6,8 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     pip:
       patterns:
@@ -14,6 +16,8 @@ updates:
   directory: /dashboard
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     npm:
       patterns:
@@ -22,6 +26,8 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     docker:
       patterns:
@@ -30,6 +36,8 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     github_actions:
       patterns:
@@ -38,6 +46,8 @@ updates:
   directory: /infra/terraform
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     terraform:
       patterns:

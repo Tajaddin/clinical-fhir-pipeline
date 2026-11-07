@@ -23,8 +23,12 @@ API_URL=$(terraform -chdir=infra/terraform output -raw api_url)
 ACCOUNT=$(terraform -chdir=infra/terraform output -raw storage_account)
 SWA_TOKEN=$(terraform -chdir=infra/terraform output -raw dashboard_deployment_token)
 
-echo "== lakehouse upload to $ACCOUNT/lakehouse"
-az storage blob upload-batch --account-name "$ACCOUNT" --destination lakehouse/lakehouse --source data/lakehouse --overwrite --only-show-errors
+# Only the de-identified layers go to the cloud; bronze, which holds the identifiers, stays local.
+echo "== silver and gold upload to $ACCOUNT/lakehouse"
+for layer in silver gold; do
+  az storage blob upload-batch --account-name "$ACCOUNT" --destination "lakehouse/lakehouse/$layer" \
+    --source "data/lakehouse/$layer" --overwrite --only-show-errors
+done
 
 echo "== dashboard"
 ( cd dashboard && npm ci --no-audit --no-fund && API_BASE="$API_URL" npm run build -- --configuration production \

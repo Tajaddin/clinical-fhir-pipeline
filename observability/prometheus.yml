@@ -15,7 +15,8 @@ scrape_configs:
     static_configs:
       - targets: ["api:8000"]
         labels: { service: cfp-api, env: local }
-  # The API started with `cfp serve` on the host instead of the container
+  # The API started on the host instead of the container (`cfp serve --host 0.0.0.0` on Linux, where the
+  # host-gateway address is not loopback)
   - job_name: cfp-api-host
     static_configs:
       - targets: ["host.docker.internal:8110"]

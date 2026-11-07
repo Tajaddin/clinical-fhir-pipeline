@@ -31,16 +31,37 @@ Steps:
 
 1. `az login`, `gh auth login`, Terraform 1.9+, Docker, Node 24.
 2. `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars` and fill in the
-   subscription id, two long random API keys with their roles, the `CFP_DEID_SALT` the pipeline used, and
-   either an OpenAI-compatible `llm_base_url` with its key or leave it empty for the fake model. For a
-   private GHCR image add a token with `read:packages`.
+   subscription id, two long random API keys with their roles, and either an OpenAI-compatible
+   `llm_base_url` with its key or leave it empty for the fake model. For a private GHCR image add a token
+   with `read:packages`. The de-identification salt stays with the pipeline; the API never needs it.
 3. `make deploy`: builds and pushes `ghcr.io/<you>/clinical-fhir-pipeline/api:<sha>`, applies the
-   Terraform, uploads `data/lakehouse` to the storage account with `az storage blob upload-batch`, builds
-   the dashboard with the API URL written into `config.js` and publishes it to the Static Web App.
+   Terraform, uploads silver and gold (not bronze, which holds the identifiers) to the storage account with
+   `az storage blob upload-batch`, builds the dashboard with the API URL written into `config.js` and
+   publishes it to the Static Web App.
 4. Check `<api_url>/health`, open the dashboard URL, paste a key.
 5. `make teardown` when the demo is over.
 
 The audit log, the stored summaries and the lakehouse are the state; `terraform destroy` deletes all of it.
+
+Deploys made before 2026-11-06 also uploaded bronze, and `upload-batch --overwrite` never deletes what is
+already there. On a storage account deployed that way, delete it once:
+`az storage fs directory delete --account-name <storage_account> --file-system lakehouse --name lakehouse/bronze --yes`.
+
+### Access the demo setup still grants
+
+Checked with `terraform validate` only; nothing here has been applied.
+
+- The API reads the lakehouse with the storage account key, which can also write and delete. The
+  least-privilege form is a managed identity on the Container App with Storage Blob Data Reader on the
+  `lakehouse` container and no key. delta-rs has an `azure_msi_endpoint` option for the Container Apps
+  identity endpoint, but that path has not been tried, so the key stays. A read-and-list SAS on the
+  container (`azurerm_storage_account_blob_container_sas`, passed as `azure_storage_sas_key`) would also
+  drop write and delete without an identity, at the cost of an expiry that a re-apply has to renew before
+  the API loses access.
+- The Postgres firewall rule `0.0.0.0` admits connections from any Azure tenant's services, not only this
+  Container App (the password still applies). Private access needs a VNet-integrated Container Apps
+  environment and a delegated subnet for the server.
+- The storage account accepts traffic from any network; restricting it needs the same VNet.
 
 ### Summaries in the cloud
 

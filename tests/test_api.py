@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -65,12 +67,16 @@ def test_cohort_quality_and_model_card(client):
     assert "fairness" in card and "sex" in card["fairness"] and card["features"]
 
 
-def test_patient_list_detail_risk_facts_without_identifiers(client):
-    page = client.get("/patients", params={"limit": 5}, headers=ANALYST).json()
+def test_patient_list_detail_risk_facts_without_identifiers(client, trained):
+    bronze = trained[0].parquet_dataset("bronze", "resources").to_table(columns=["resource_id", "patient_id"])
+    source_ids = set(bronze["resource_id"].to_pylist()) | set(bronze["patient_id"].to_pylist())
+    listing = client.get("/patients", params={"limit": 5}, headers=ANALYST)
+    page = listing.json()
     assert page["total"] == 160 and len(page["items"]) == 5
     top = page["items"][0]
     assert top["risk"] is not None and top["pseudonym"].startswith("P-")
     pid = top["patient_id"]
+    assert pid not in source_ids
     detail = client.get(f"/patients/{pid}", headers=ANALYST)
     assert detail.status_code == 200
     body = detail.text
@@ -82,6 +88,8 @@ def test_patient_list_detail_risk_facts_without_identifiers(client):
     assert 0 <= risk["risk"] <= 1 and risk["risk_band"] in {"low", "medium", "high"} and len(risk["top_factors"]) == 3
     facts = client.get(f"/patients/{pid}/facts", params={"section": "problems"}, headers=ANALYST).json()
     assert facts["count"] >= 1 and all(f["section"] == "problems" for f in facts["items"])
+    served = listing.text + body + str(risk) + str(facts)
+    assert source_ids.isdisjoint(re.findall(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", served))
     assert client.get("/patients/00000000-0000-4000-8000-00000000dead", headers=ANALYST).status_code == 404
     assert client.get("/patients/not%20valid%3Bid", headers=ANALYST).status_code == 422
 

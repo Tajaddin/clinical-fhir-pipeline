@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
+import numpy as np
 import pytest
 
 from cfp.db import audit_counts, current_summary, init_db, list_audit, make_engine, save_summary, write_audit
 from cfp.faithfulness import evaluate, judge_summary, supports
 from cfp.gold import build_gold
-from cfp.llm import Completion, FakeLLM, _extract_json
-from cfp.summaries import SECTIONS, Fact, Retriever, build_prompt, load_facts, load_patient, summarize
+from cfp.llm import Completion, FakeLLM, OpenAICompatible, _extract_json
+from cfp.model import bootstrap_auroc_ci, split_sensitivity
+from cfp.summaries import SECTIONS, Fact, Retriever, Summary, build_prompt, load_facts, load_patient, summarize
 from conftest import REFERENCE
 
 # ---- summaries and faithfulness ----------------------------------------------------------------------------
@@ -106,6 +109,154 @@ def test_supports_uses_name_value_or_date_anchors():
     assert supports("Patient is a male aged 65-89.", enc) is None
 
 
+def test_supports_rejects_claims_that_contradict_the_cited_fact():
+    problem = Fact(
+        "Condition/x", "Condition", "problems", None, "Essential hypertension (disorder), since 2019-03-01 (active)"
+    )
+    assert supports("Essential hypertension was ruled out; the patient has no hypertension.", problem) is None
+    assert supports("Essential hypertension resolved in 2012-05-05.", problem) is None
+    assert supports("Essential hypertension has resolved.", problem) is None
+    assert supports("Essential hypertension since 2012-05-05.", problem) is None
+    assert supports("Essential hypertension, active since March 2, 2019.", problem) is None
+    assert supports("Essential hypertension, active since March 1, 2019.", problem) is not None
+    assert supports("Essential hypertension since 2019.", problem) is not None
+    for claim in (
+        "The patient doesn't have essential hypertension.",
+        "Essential hypertension isn't present.",
+        "Essential hypertension was excluded.",
+        "Essential hypertension is in remission.",
+        "Essential hypertension since June of 2019.",
+        "Essential hypertension since june 2019.",
+        "Essential hypertension since the 1st of June 2019.",
+    ):
+        assert supports(claim, problem) is None, claim
+    assert supports("Essential hypertension since march of 2019.", problem) is not None
+    assert supports("Essential hypertension since 2019 may need a review.", problem) is not None
+    lab = Fact(
+        "Observation/y", "Observation", "results", None, "Hemoglobin A1c/Hemoglobin.total in Blood: 6.1 % on 2024-11-02"
+    )
+    assert supports("Hemoglobin A1c was 11.9%, dangerously high, on 2020-01-01.", lab) is None
+    assert supports("Hemoglobin A1c was 11.9% on 2024-11-02.", lab) is None
+    assert supports("Hemoglobin A1c was 6.10 % on November 2, 2024.", lab) is not None
+    ended = Fact(
+        "Condition/z",
+        "Condition",
+        "problems",
+        None,
+        "Acute viral pharyngitis (disorder), from 2024-04-22 to 2024-05-03",
+    )
+    assert supports("Acute viral pharyngitis from April 22 to May 3, 2024.", ended) is not None
+    assert supports("Acute viral pharyngitis from April 22 to May 9, 2024.", ended) is None
+    assert supports("Acute viral pharyngitis, still active since 2024-04-22.", ended) is None
+    stopped = Fact(
+        "MedicationRequest/m",
+        "MedicationRequest",
+        "medications",
+        None,
+        "amLODIPine 2.5 MG Oral Tablet (stopped), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05 is not currently active.", stopped) is not None
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05 isn't currently active.", stopped) is not None
+    assert supports("The patient is currently taking amLODIPine 2.5 mg.", stopped) is None
+    assert supports("amLODIPine 5 mg oral tablet for hypertension.", stopped) is None
+    active = Fact(
+        "MedicationRequest/a",
+        "MedicationRequest",
+        "medications",
+        None,
+        "amLODIPine 2.5 MG Oral Tablet (active), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    assert supports("amLODIPine 2.5 mg ordered on 2020-01-05.", active) is not None
+    assert supports("amLODIPine 2.5 mg wasn't continued after 2020.", active) is None
+    # A claim citing several facts may take each value from any of them.
+    lisinopril = Fact(
+        "MedicationRequest/n",
+        "MedicationRequest",
+        "medications",
+        None,
+        "lisinopril 10 MG Oral Tablet (stopped), ordered 2020-01-05 for Essential hypertension (disorder)",
+    )
+    both = "amLODIPine 2.5 mg and lisinopril 10 mg were ordered on 2020-01-05."
+    assert supports(both, stopped) is None and supports(both, stopped, lisinopril) is not None
+    assert supports("10 mg lisinopril and 2.5 mg amLODIPine, ordered 2020-01-05.", stopped, lisinopril) is not None
+    # ... but a number must be in a cited fact named next to it, not only in another cited one.
+    hemoglobin = Fact(
+        "Observation/h", "Observation", "results", None, "Hemoglobin [Mass/volume] in Blood: 11.9 g/dL on 2024-11-02"
+    )
+    assert supports("Hemoglobin A1c was 11.9% on 2024-11-02.", lab, hemoglobin) is None
+    assert supports("Hemoglobin 11.9 g/dL and hemoglobin A1c 6.1% on 2024-11-02.", lab, hemoglobin) is not None
+    assert supports("Hemoglobin A1c 6.1% and hemoglobin 11.9 g/dL on 2024-11-02.", lab, hemoglobin) is not None
+    simvastatin = Fact(
+        "MedicationRequest/s",
+        "MedicationRequest",
+        "medications",
+        None,
+        "Simvastatin 10 MG Oral Tablet (active), ordered 2019-02-18 for Hyperlipidemia (disorder)",
+    )
+    ibuprofen = Fact(
+        "MedicationRequest/i",
+        "MedicationRequest",
+        "medications",
+        None,
+        "Ibuprofen 200 MG Oral Tablet (completed), ordered 2015-06-24",
+    )
+    assert supports("Simvastatin 10 MG Oral Tablet since 2019.", simvastatin, ibuprofen) is not None
+    assert supports("Simvastatin 10 MG Oral Tablet since 2015.", simvastatin, ibuprofen) is None
+    diabetes = Fact(
+        "Condition/d", "Condition", "problems", None, "Diabetes mellitus type 2 (disorder), since 2015-06-01 (active)"
+    )
+    assert supports("Essential hypertension and type 2 diabetes, active.", problem, diabetes) is not None
+    assert supports("Essential hypertension since 2019 and diabetes since 2015.", problem, diabetes) is not None
+    assert supports("Essential hypertension since 2015 and diabetes since 2019.", problem, diabetes) is None
+    body_weight = Fact("Observation/w", "Observation", "results", None, "Body Weight: 54.0 kg on 2023-04-06")
+    body_height = Fact("Observation/v", "Observation", "results", None, "Body Height: 151.1 cm on 2023-04-06")
+    measured = "On 2023-04-06 the patient weighed {} kg and had a height of {} cm."
+    assert supports(measured.format("54.0", "151.1"), body_weight, body_height) is not None
+    assert supports(measured.format("151.1", "54.0"), body_weight, body_height) is None
+    # A discharge date follows from the admission date and the length of stay.
+    stay = Fact(
+        "Encounter/s",
+        "Encounter",
+        "encounters",
+        None,
+        "Inpatient admission on 2012-02-18: Admission to surgical transplant department (procedure), 8.3 days",
+    )
+    assert supports("Inpatient admission from 2012-02-18 to 2012-02-26.", stay) is not None
+    assert supports("Inpatient admission from 2012-02-18 to 2012-03-04.", stay) is None
+
+
+def test_judge_summary_names_the_contradiction():
+    fact = Fact(
+        "Observation/y", "Observation", "results", None, "Hemoglobin A1c/Hemoglobin.total in Blood: 6.1 % on 2024-11-02"
+    )
+    claim = {"text": "Hemoglobin A1c was 11.9% on 2024-11-02.", "citations": ["Observation/y"]}
+    summary = Summary(
+        "p", "P-1", "m", "v", "now", [{"title": "Latest results", "claims": [claim]}], [], 0, 0.0, None, None
+    )
+    (verdict,) = judge_summary(summary, [fact])
+    assert verdict.status == "unsupported" and verdict.problem == "value 11.9 not in the cited facts"
+
+
+def test_judge_summary_checks_every_fact_of_a_cited_resource():
+    """A blood pressure Observation is two facts under one reference; a claim may quote either."""
+    systolic = Fact(
+        "Observation/bp", "Observation", "results", None, "Systolic Blood Pressure: 128 mm[Hg] on 2024-05-01"
+    )
+    diastolic = Fact(
+        "Observation/bp", "Observation", "results", None, "Diastolic Blood Pressure: 82 mm[Hg] on 2024-05-01"
+    )
+    claims = [
+        {"text": "Systolic blood pressure 128 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+        {"text": "Blood pressure 128/82 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+        {"text": "Systolic blood pressure 182 mm[Hg] on 2024-05-01.", "citations": ["Observation/bp"]},
+    ]
+    summary = Summary(
+        "p", "P-1", "m", "v", "now", [{"title": "Latest results", "claims": claims}], [], 0, 0.0, None, None
+    )
+    verdicts = judge_summary(summary, [systolic, diastolic])
+    assert [v.status for v in verdicts] == ["supported", "supported", "unsupported"]
+
+
 def test_evaluate_writes_a_report_with_rates_and_examples(gold_lake, tmp_path):
     con = gold_lake.connect([("gold", "patient_facts")])
     ids = [r[0] for r in con.sql("select distinct patient_id from gold_patient_facts order by 1 limit 5").fetchall()]
@@ -113,7 +264,7 @@ def test_evaluate_writes_a_report_with_rates_and_examples(gold_lake, tmp_path):
         gold_lake, FakeLLM(unsupported_every=4), Retriever(per_section=3), ids, tmp_path / "f.json", tmp_path / "ex"
     )
     assert report["patients"] == 5 and report["claims"] > 10 and report["coverage"] == 1.0
-    assert 0.6 <= report["faithfulness_rate"] <= 0.8
+    assert 0.6 <= report["faithfulness_rate"] <= 0.8 and report["contradicted"] == 0
     assert report["breakdown"]["unsupported"] >= 1 and set(report["by_section"]) <= {
         title for title, _ in SECTIONS.values()
     }
@@ -129,6 +280,53 @@ def test_extract_json_handles_fences_prose_and_truncation():
     with pytest.raises(json.JSONDecodeError):
         _extract_json("no json at all")
     assert isinstance(Completion(content={}, latency_s=0.1), Completion)
+
+
+def _llm_answering(responses: list[httpx.Response], monkeypatch) -> tuple[OpenAICompatible, list, list[float]]:
+    calls: list[httpx.Request] = []
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return responses.pop(0)
+
+    llm = OpenAICompatible("http://llm.test/v1", "m", retries=2, backoff_s=0.5)
+    llm._client = httpx.Client(base_url="http://llm.test/v1", transport=httpx.MockTransport(handler))
+    monkeypatch.setattr("cfp.llm.time.sleep", sleeps.append)
+    return llm, calls, sleeps
+
+
+def test_llm_client_does_not_retry_a_client_error(monkeypatch):
+    llm, calls, sleeps = _llm_answering([httpx.Response(401, json={"error": "bad key"})] * 3, monkeypatch)
+    with pytest.raises(RuntimeError, match="HTTP 401"):
+        llm.complete_json("system", "user")
+    assert len(calls) == 1 and sleeps == []
+
+
+def test_llm_client_backs_off_on_rate_limits_and_server_errors(monkeypatch):
+    ok = httpx.Response(200, json={"choices": [{"message": {"content": '{"claims": []}'}}]})
+    llm, calls, sleeps = _llm_answering(
+        [httpx.Response(503), httpx.Response(429, headers={"Retry-After": "7"}), ok], monkeypatch
+    )
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 3 and sleeps == [0.5, 7.0]
+    llm, calls, sleeps = _llm_answering([httpx.Response(500)] * 3, monkeypatch)
+    with pytest.raises(RuntimeError, match="after 3 attempts"):
+        llm.complete_json("system", "user")
+    assert len(calls) == 3 and sleeps == [0.5, 1.0]
+
+
+def test_llm_client_ignores_a_retry_after_it_cannot_sleep(monkeypatch):
+    ok = httpx.Response(200, json={"choices": [{"message": {"content": '{"claims": []}'}}]})
+    llm, calls, sleeps = _llm_answering(
+        [httpx.Response(429, headers={"Retry-After": "-1"}), httpx.Response(429, headers={"Retry-After": "nan"}), ok],
+        monkeypatch,
+    )
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 3 and sleeps == [0.5, 1.0]
+    llm, calls, sleeps = _llm_answering([httpx.Response(503, headers={"Retry-After": "0"}), ok], monkeypatch)
+    assert llm.complete_json("system", "user").content == {"claims": []}
+    assert len(calls) == 2 and sleeps == [0.0]
 
 
 # ---- audit log and summaries store -------------------------------------------------------------------------
@@ -186,6 +384,16 @@ def test_audit_log_and_summary_store_roundtrip(tmp_path):
 # ---- model -------------------------------------------------------------------------------------------------
 
 
+def test_bootstrap_interval_resamples_patients_not_admissions():
+    rng = np.random.default_rng(0)
+    y_patient = rng.integers(0, 2, 60)
+    p_patient = 0.3 * y_patient + 0.7 * rng.random(60)
+    y, p = np.repeat(y_patient, 8), np.repeat(p_patient, 8)  # eight identical admissions per patient
+    lo_adm, hi_adm = bootstrap_auroc_ci(y, p, np.arange(len(y)), seed=1)
+    lo_pat, hi_pat = bootstrap_auroc_ci(y, p, np.repeat(np.arange(60), 8), seed=1)
+    assert lo_pat < lo_adm and hi_pat > hi_adm and hi_pat - lo_pat > 2 * (hi_adm - lo_adm)
+
+
 def test_train_produces_calibrated_metrics_fairness_scores_and_artifacts(trained):
     big_lake, metrics, reports = trained
     assert metrics["champion"] in {"logistic_regression", "xgboost"}
@@ -197,6 +405,15 @@ def test_train_produces_calibrated_metrics_fairness_scores_and_artifacts(trained
         assert t["auroc_ci95"][0] <= t["auroc"] <= t["auroc_ci95"][1]
     assert {r["group"] for r in metrics["fairness"]["sex"]} <= {"male", "female"}
     assert metrics["explanations"]["xgboost_mean_abs_shap"][0]["mean_abs_shap"] >= 0
+    # The other splits are measured the way the headline split is: the trained seed reproduces its AUROC.
+    sensitivity = metrics["split_sensitivity"]
+    assert sensitivity["seeds"] == [2, 3, 4, 5]
+    assert all(len(sensitivity[name]) == 4 for name in ("logistic_regression", "xgboost"))
+    admissions = big_lake.read_delta("gold", "admissions").to_pandas()
+    modeled = admissions[admissions["in_modeling_cohort"]].reset_index(drop=True)
+    again = split_sensitivity(modeled, [1], test_size=0.2, val_size=0.15)
+    for name in ("logistic_regression", "xgboost"):
+        assert again[name] == [pytest.approx(metrics["models"][name]["test"]["auroc"])]
     scores = big_lake.read_delta("gold", "risk_scores").to_pandas()
     assert len(scores) == cohort["admissions_total"] and scores["risk"].between(0, 1).all()
     assert set(scores["split"]) >= {"train", "test"} and json.loads(scores["top_factors"].iloc[0])

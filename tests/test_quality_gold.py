@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 
+import pyarrow as pa
 import pytest
 
 from cfp.gold import FLAG_COLUMNS, HISTORY_COLUMNS, LAB_COLUMNS, build_gold
+from cfp.lake import Lake
 from cfp.quality import CHECKS, Check, QualityError, enforce, run_checks, write_results
+from cfp.silver import SCHEMAS
 from conftest import N_PATIENTS, REFERENCE
 
 
@@ -34,14 +37,14 @@ def test_a_failing_critical_check_raises(lake, tmp_path):
         enforce(summary)
 
 
-def test_admissions_have_labels_from_known_readmissions(lake, gold_stats):
+def test_admissions_have_labels_from_known_readmissions(lake, gold_stats, ctx):
     con = lake.connect()
     adm = con.sql("select * from gold_admissions order by patient_id, admit_ts").df()
     assert gold_stats.admissions == len(adm) and len(adm) >= N_PATIENTS
     # The factory readmits patients with index % 3 == 1 within 2 to 25 days and admits some others after 90 days.
     first = adm.groupby("patient_id").first().reset_index()
     readmitted = {pid for pid, r in zip(first["patient_id"], first["readmitted"], strict=True) if r}
-    expected = {f"{i:08x}-0000-4000-8000-000000000000" for i in range(N_PATIENTS) if i % 3 == 1}
+    expected = {ctx.pseudo_id(f"{i:08x}-0000-4000-8000-000000000000") for i in range(N_PATIENTS) if i % 3 == 1}
     assert readmitted == expected
     gaps = first.loc[first["readmitted"], "days_to_next_admission"]
     assert gaps.between(0, 30).all()
@@ -90,6 +93,52 @@ def test_patient_facts_cite_real_resources_with_dates_in_text(lake, gold_stats):
         "select text from gold_patient_facts where section = 'results' and text like 'Systolic%' limit 1"
     ).fetchone()
     assert bp is not None and "mm[Hg]" in bp[0]
+
+
+def test_censoring_uses_the_earliest_end_a_shifted_record_can_have(tmp_path):
+    """Records end at the reference date shifted by up to 30 days either way. A late encounter of a patient
+    shifted forward must not extend the follow-up of a patient shifted back: only windows that close before
+    reference - 30 days are complete for everyone, whether or not a readmission was seen inside them."""
+    lake = Lake(str(tmp_path / "lake"))
+    for table, schema in SCHEMAS.items():
+        lake.write_delta("silver", table, pa.Table.from_pylist([], schema=schema))
+    lake.write_delta(
+        "silver",
+        "patients",
+        pa.Table.from_pylist(
+            [{"patient_id": p, "sex": "female", "age_years": 60} for p in ("a", "b", "c")], SCHEMAS["patients"]
+        ),
+    )
+
+    def stay(eid: str, pid: str, start: datetime) -> dict:
+        end = start + timedelta(days=3)
+        return {
+            "encounter_id": eid,
+            "patient_id": pid,
+            "class_code": "IMP",
+            "start_ts": start,
+            "end_ts": end,
+            "length_hours": 72.0,
+        }
+
+    encounters = [
+        stay("early", "a", datetime(2024, 9, 25)),  # discharged 09-28: window closes 10-28
+        stay("late", "a", datetime(2024, 11, 7)),  # discharged 11-10: window closes 12-10, after 12-02
+        stay("shifted-forward", "b", datetime(2025, 1, 25)),  # the latest shifted date in the data
+        stay("late-readmitted", "c", datetime(2024, 11, 1)),  # window closes 12-04, after 12-02 ...
+        stay("readmission", "c", datetime(2024, 11, 20)),  # ... though this readmission falls inside it
+    ]
+    lake.write_delta("silver", "encounters", pa.Table.from_pylist(encounters, SCHEMAS["encounters"]))
+    build_gold(lake, readmission_days=30, reference_date=date(2025, 1, 1), max_shift_days=30)
+    adm = lake.read_delta("gold", "admissions").to_pandas().set_index("admission_id")
+    assert adm["censored"].to_dict() == {
+        "early": False,
+        "late": True,
+        "shifted-forward": True,
+        "late-readmitted": True,
+        "readmission": True,
+    }
+    assert adm.loc["late-readmitted", "readmitted"] and not adm.loc["late-readmitted", "in_modeling_cohort"]
 
 
 def test_reference_date_type():

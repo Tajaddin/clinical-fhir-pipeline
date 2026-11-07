@@ -8,26 +8,39 @@ service with API keys, per-key rate limits and an audit log of every access serv
 Docker Compose for local runs, Terraform for Azure, GitHub Actions that regenerate a cohort and run the
 whole pipeline on every push.
 
-**Status: built and verified locally (2026-10-17); not deployed.** All numbers below come from the committed
-scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing is production traffic.
+**Status: built 2026-10-17, re-run locally 2026-11-06; not deployed.** All numbers below come from the
+committed scripts on a 2,263-patient Synthea cohort generated with a fixed seed; nothing is production traffic.
 
 ## Results
 
 <!-- RESULTS -->
 - **Data quality:** 22 of 25 checks pass; 0 critical failures. Warnings: systolic blood pressure within 50-260 (2 of 31,503 rows); HbA1c within 3-20 (2,463 of 17,480 rows); no encounters after death (219 of 40,588 rows).
-- **Readmission model** (2,932 admissions from 1,141 patients, 15.5% readmitted within 30 days; patient-level split, 635 held-out admissions from 229 patients): champion **xgboost** with held-out **AUROC 0.832** (95% bootstrap CI 0.785 to 0.872), AUPRC 0.437, Brier 0.088, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.028); logistic_regression AUROC 0.798, ECE 0.031.
-- **Fairness (held-out):** AUROC female 0.838 vs male 0.823; selection rate at the 30% threshold female 21.5% vs male 17.6%. Age bands and race are in the model card.
-- **Summary faithfulness** (qwen2.5:3b, bm25+recency, one model call per section, 40 patients, 1059 claims, 26.48 per summary, coverage 90.7% of the facts shown): **98.3% of claims supported** by the resource they cite; unsupported 18, missing citation 0, unknown citation 0, invented citation keys dropped 15; median generation 17.75 s per patient on the local GPU.
-- **Same eval with qwen2.5:7b:** 97.5% of 1257 claims supported (unsupported 29, missing citation 3), coverage 92.8%, median 36.16 s per patient. The checker is the same; the model is what changes.
-- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 473 claims.
+- **Readmission model** (2,903 admissions from 1,135 patients, 15.4% readmitted within 30 days; patient-level split, 633 held-out admissions from 227 patients): champion **xgboost** with held-out **AUROC 0.860** on this split (95% bootstrap CI 0.787 to 0.939; **0.852 to 0.937 over 5 other patient splits**), AUPRC 0.445, Brier 0.097, **ECE 0.040** after isotonic calibration (uncalibrated ECE 0.039); logistic_regression AUROC 0.820 (0.734 to 0.922 over 5 other patient splits), ECE 0.046.
+- **Fairness (held-out):** AUROC female 0.931 vs male 0.802; selection rate at the 30% threshold female 10.8% vs male 27.2%. Age bands and race are in the model card.
+- **Summary faithfulness** (qwen2.5:3b, bm25+recency, one model call per section, 40 patients, 1113 claims, 27.82 per summary, coverage 92.3% of the facts shown): **91.4% of claims supported** by the resource they cite; unsupported 95 (contradicting the cited fact 62), missing citation 1, unknown citation 0, invented citation keys dropped 119; median generation 15.59 s per patient on the local GPU.
+- **Same eval with qwen2.5:7b:** 96.2% of 1215 claims supported (unsupported 43, contradicting the cited fact 15, missing citation 3), coverage 92.2%, median 30.71 s per patient. The checker is the same; the model is what changes.
+- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores 100.0% on 505 claims, 0 of them flagged as contradictions.
 <!-- /RESULTS -->
 
 How they were measured: the cohort is `scripts/synthea.sh` (Synthea v4.0.0, seed 42, Tampa, Florida,
 reference and end date 2025-01-01). The model numbers are `cfp train` on a held-out fold split by patient,
-with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table).
-The faithfulness number is `cfp eval-summaries --patients 40` with qwen2.5:3b on Ollama (RTX 4060) and the
-deterministic checker described below; the same command with the fake model scores 100%, which is the
-checker's own test. Data quality is `cfp quality`.
+with isotonic calibration fitted on a separate validation fold (`docs/MODEL-CARD.md` has every table), and
+the interval resamples patients. They were re-run on 2026-11-06 with a random `CFP_DEID_SALT`: patient ids
+are now keyed pseudonyms, so the salt decides which patients the split holds out, and that salt is not
+published. `cfp train` therefore also re-fits both models on five other patient splits (seeds 1 to 5) and
+reports their range; quote the range, not the single split.
+The faithfulness eval is `cfp eval-summaries --patients 40` on Ollama (RTX 4060) with BM25 retrieval, run
+with qwen2.5:3b and again with `CFP_LLM_MODEL=qwen2.5:7b`, scored by the deterministic checker described
+below; both were re-run on 2026-11-06. The 98.3% and 97.5% published before came from a checker that only
+tested whether a claim was about the fact it cites. Every claim flagged as contradicting its fact was read
+by hand: 58 of 62 in the qwen2.5:3b run and 10 of 15 in the qwen2.5:7b run are real (dates and values the
+cited facts do not hold, a value taken from another cited fact, "currently taking" a completed order). The
+false positives are paraphrases the cue lists miss ("no blood" for "not detected", "reasons are not
+specified"), percentiles rounded to "23rd" or "94th", "was active from ... to ..." for an ended condition,
+and "vaccine" read as the name nearest a year. Of the claims without an anchor, 18 of 33 (3b) and 8 of 28
+(7b) are correct but give the date in words, which the anchor rule does not read, so the rates are lower
+bounds. The same command with the fake model is the checker's own test: over all 2,263 patients it supports
+all 111,336 claims and flags none. Data quality is `cfp quality`.
 
 ## Architecture
 
@@ -68,14 +81,15 @@ Needs Python 3.12 with [uv](https://docs.astral.sh/uv/), Java 11+ (for Synthea),
 ```bash
 make install                 # uv sync, npm ci
 make synthea                 # downloads the pinned Synthea jar (200 MB) and generates 2,000 patients, ~1 min
-cp .env.example .env         # set CFP_DEID_SALT to something long and random
+cp .env.example .env         # set CFP_DEID_SALT and CFP_API_KEYS (openssl rand -hex 32 for each)
 make pipeline                # bronze -> silver -> quality -> gold -> train -> eval (fake model), ~2 min
 make report                  # render README results and docs/MODEL-CARD.md
 make up                      # Postgres, API on :8110, dashboard on :4210
 ```
 
-Open http://localhost:4210, paste `local-analyst-key` (or `local-admin-key` for the audit log) into the key
-box. For real summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoint; with
+Open http://localhost:4210 and paste the analyst key you set in `CFP_API_KEYS` (the admin key for the audit
+log) into the key box; Compose has no default keys and publishes its ports on 127.0.0.1 only. For real
+summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoint; with
 [Ollama](https://ollama.com) on the host and `ollama pull qwen2.5:3b` the Compose default works as is.
 `make up-obs` adds Prometheus (:9105), Alertmanager (:9106) and Grafana (:3007, dashboard provisioned).
 
@@ -84,8 +98,10 @@ box. For real summaries point `CFP_LLM_BASE_URL` at an OpenAI-compatible endpoin
 **De-identification (ADR 0002).** Names, addresses below state and 3-digit zip, phone, e-mail, SSN and
 other numbers are never extracted. Birth dates become a year and an age band (90+ capped, no year). Every
 date is shifted by a per-patient offset of 1 to 30 days derived from an HMAC of the patient id and a secret
-salt, so intervals inside one record survive and no re-identification table exists. Free-text notes are
-not extracted.
+salt, so intervals inside one record survive and no re-identification table exists. Patient and resource ids
+are replaced by a separate keyed HMAC of the id, so tables still join but no source id reaches silver, gold or
+the API. `cfp silver` refuses a salt shorter than 32 characters or the previously published example salt.
+Free-text notes are not extracted.
 
 **Quality checks.** 25 SQL checks on silver with severities: ids unique, references resolve, encounters end
 after they start, ages within 0 to 90, no birth year over 89, coded problems and medications, plausible
@@ -96,16 +112,19 @@ gold and in `reports/data-quality.json`. The warnings the checks raise on this c
 by another inpatient admission within 30 days; in-hospital deaths and censored discharges excluded.
 Features are all available at discharge: prior utilisation, active chronic conditions, medications, the
 stay itself, latest vitals and labs, admission reason. Split by patient; champion chosen on validation;
-isotonic calibration; AUROC with a bootstrap interval, AUPRC, Brier, ECE, calibration slope and intercept,
-reliability curve; fairness by sex, age band, race and ethnicity; SHAP and coefficients. Every admission is
-scored into `gold.risk_scores` with its split and top three factors.
+isotonic calibration; AUROC with a patient-level bootstrap interval, AUPRC, Brier, ECE, calibration slope
+and intercept, reliability curve; fairness by sex, age band, race and ethnicity; SHAP and coefficients.
+Every admission is scored into `gold.risk_scores` with its split and top three factors.
 
 **Cited summaries (ADR 0004).** Each clinical resource becomes one fact with its reference. For each
 section (problems, medications, encounters, results, allergies, procedures, immunizations, care plans) the
 retriever picks the top facts by a BM25 match to a clinical priority query blended with recency, the model
 gets them labelled `[P1]`, `[M2]`, ... and returns claims that cite those keys; keys map back to
 `Condition/<id>` and invented ones are dropped and counted. The checker then requires each claim to cite a
-resource of that patient and to repeat an anchor of it (name tokens, or a value or date with a name token).
+resource of that patient, to repeat an anchor of it (name tokens, or a value or date with a name token), and
+to contradict nothing it cites: every date the claim writes must appear in a cited fact and every number
+in a cited fact named next to it, and a negation cue ("not", "doesn't", "ruled out", "excluded", "free of") or a status word ("resolved", "in
+remission", "still active") that the cited facts do not use makes it unsupported.
 The rate reported is supported claims over all claims; the breakdown names the failure kind.
 
 **Audit and access (ADR 0005).** Middleware writes who (key fingerprint), role, action, patient, purpose
@@ -121,7 +140,7 @@ promtool unit tests (`make alerts-test`).
 ## Tests
 
 ```bash
-make test          # 35 Python tests: bronze, de-identification, silver, quality, gold labels and features,
+make test          # 47 Python tests: bronze, de-identification, silver, quality, gold labels and features,
                    # model (160 factory patients), summaries, faithfulness checker, audit store, API
 make e2e-fixture   # deterministic cohort under data/e2e
 make serve-e2e     # API on :8110 serving it (separate terminal)
@@ -150,7 +169,14 @@ everything. Costs and steps are in `docs/DEPLOY.md`. Not applied yet.
   post-surgical care), so the model's discrimination is about the pipeline, not about hospitals.
 - One machine. DuckDB and delta-rs instead of a Spark cluster (ADR 0001); the tables are Spark-readable.
 - The faithfulness check is strict on paraphrase and blind to omissions; it measures copying fidelity, and
-  the coverage figure (facts cited over facts shown) says how much of the record the summary used.
+  the coverage figure (facts cited over facts shown) says how much of the record the summary used. Negation
+  and status are lists of cue words, so a contradiction worded without one of them still passes. A number
+  is checked against the cited facts named nearest before it or right after it or its unit, so one written
+  far from its own fact's name is read as another fact's and flagged.
+- The score depends on which patients the test fold holds out: 20 patients carry 28% of the modeled
+  admissions (up to 68 each), which is why the results give the range over five other patient splits next
+  to the one the model card describes. Those are repeated hold-outs, not cross-validation folds, so a
+  patient can be in several test folds.
 - Chronic-condition flags are display-text patterns, not value sets.
 - Rate limiting is per process; the summary endpoint takes seconds with a local 3B model.
 

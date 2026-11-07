@@ -29,6 +29,14 @@ def num(x: float | None, digits: int = 3) -> str:
     return "n/a" if x is None else f"{x:.{digits}f}"
 
 
+def spread(m: dict, model: str) -> str:
+    """Range of a model's held-out AUROC over the other patient splits `cfp train` re-measures it on."""
+    values = [v for v in (m.get("split_sensitivity") or {}).get(model, []) if v is not None]
+    if not values:
+        return ""
+    return f"{num(min(values))} to {num(max(values))} over {len(values)} other patient splits"
+
+
 def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
     lines = []
     if q:
@@ -52,9 +60,12 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
         lines.append(
             f"- **Readmission model** ({c['admissions_modeled']:,} admissions from {c['patients_modeled']:,} patients, "
             f"{pct(c['prevalence'])} readmitted within 30 days; patient-level split, {c['test']:,} held-out admissions from {c['test_patients']:,} patients): "
-            f"champion **{champ}** with held-out **AUROC {num(t['auroc'])}** (95% bootstrap CI {num(t['auroc_ci95'][0])} to {num(t['auroc_ci95'][1])}), "
-            f"AUPRC {num(t['auprc'])}, Brier {num(t['brier'])}, **ECE {num(t['ece'])}** after isotonic calibration "
-            f"(uncalibrated ECE {num(m['models'][champ]['test_uncalibrated']['ece'])}); {other} AUROC {num(o['auroc'])}, ECE {num(o['ece'])}."
+            f"champion **{champ}** with held-out **AUROC {num(t['auroc'])}** on this split (95% bootstrap CI {num(t['auroc_ci95'][0])} to {num(t['auroc_ci95'][1])}"
+            + (f"; **{spread(m, champ)}**" if spread(m, champ) else "")
+            + f"), AUPRC {num(t['auprc'])}, Brier {num(t['brier'])}, **ECE {num(t['ece'])}** after isotonic calibration "
+            f"(uncalibrated ECE {num(m['models'][champ]['test_uncalibrated']['ece'])}); {other} AUROC {num(o['auroc'])}"
+            + (f" ({spread(m, other)})" if spread(m, other) else "")
+            + f", ECE {num(o['ece'])}."
         )
         sex = {r["group"]: r for r in m["fairness"]["sex"]}
         if {"female", "male"} <= set(sex) and all("auroc" in sex[g] for g in ("female", "male")):
@@ -63,13 +74,14 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
                 f"selection rate at the {m['threshold']:.0%} threshold female {pct(sex['female']['selection_rate'])} vs male {pct(sex['male']['selection_rate'])}. "
                 "Age bands and race are in the model card."
             )
-    if f and f.get("latency_s"):
+    if f and f.get("model") != "fake" and f.get("latency_s"):
         b = f.get("breakdown", {})
         lines.append(
             f"- **Summary faithfulness** ({f['model']}, {f['retrieval']}, one model call per section, {f['patients']} patients, {f['claims']} claims, "
             f"{f.get('claims_per_summary')} per summary, coverage {pct(f.get('coverage'))} of the facts shown): "
             f"**{pct(f['faithfulness_rate'])} of claims supported** by the resource they cite; "
-            f"unsupported {b.get('unsupported', 0)}, missing citation {b.get('missing_citation', 0)}, unknown citation {b.get('unknown_citation', 0)}, "
+            f"unsupported {b.get('unsupported', 0)} (contradicting the cited fact {f.get('contradicted', 0)}), "
+            f"missing citation {b.get('missing_citation', 0)}, unknown citation {b.get('unknown_citation', 0)}, "
             f"invented citation keys dropped {f.get('dropped_citations', 0)}; median generation {f['latency_s']['median']} s per patient on the local GPU."
         )
         other = load("summary-faithfulness-qwen2.5-7b.json")
@@ -77,14 +89,21 @@ def results_section(m: dict | None, f: dict | None, q: dict | None) -> str:
             ob = other.get("breakdown", {})
             lines.append(
                 f"- **Same eval with {other['model']}:** {pct(other['faithfulness_rate'])} of {other['claims']} claims supported "
-                f"(unsupported {ob.get('unsupported', 0)}, missing citation {ob.get('missing_citation', 0)}), coverage {pct(other.get('coverage'))}, "
+                f"(unsupported {ob.get('unsupported', 0)}, contradicting the cited fact {other.get('contradicted', 0)}, "
+                f"missing citation {ob.get('missing_citation', 0)}), coverage {pct(other.get('coverage'))}, "
                 f"median {other['latency_s']['median']} s per patient. The checker is the same; the model is what changes."
             )
-        fake = load("summary-faithfulness-fake.json")
-        if fake:
-            lines.append(
-                f"- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores {pct(fake['faithfulness_rate'])} on {fake['claims']} claims."
-            )
+    else:
+        lines.append(
+            "- **Summary faithfulness with a model:** not yet measured with the current checker, which also rejects claims "
+            "whose numbers, dates, negation or status disagree with the cited fact; `make eval` with a model server measures it."
+        )
+    fake = load("summary-faithfulness-fake.json")
+    if fake:
+        lines.append(
+            f"- **Checker self-test:** the deterministic fake model, which copies facts verbatim, scores {pct(fake['faithfulness_rate'])} "
+            f"on {fake['claims']} claims, {fake.get('contradicted', 0)} of them flagged as contradictions."
+        )
     return "\n".join(line for line in lines if line) or "_No reports yet: run `make pipeline`._"
 
 
@@ -117,6 +136,19 @@ def model_card(m: dict, f: dict | None) -> str:
         f"| {d['feature']} | {d['coefficient']:+.3f} |"
         for d in m["explanations"]["logistic_regression_coefficients"][:12]
     )
+    sens = m.get("split_sensitivity") or {}
+    splits = ""
+    if sens.get("seeds"):
+        rows_by_seed = "\n".join(
+            f"| {seed} | {num(sens['logistic_regression'][i])} | {num(sens['xgboost'][i])} |"
+            for i, seed in enumerate(sens["seeds"])
+        )
+        splits = (
+            "The test fold above is one patient split, and a few patients with many admissions move its score. The\n"
+            "same fitting and calibration on other patient splits of this cohort (`split_sensitivity` in the metrics):\n\n"
+            "| split seed | logistic_regression test AUROC | xgboost test AUROC |\n|---|---|---|\n"
+            f"{rows_by_seed}\n\n"
+        )
     reliability = "\n".join(
         f"| {b['lower']:.1f}-{b['upper']:.1f} | {b['n']} | {pct(b['mean_predicted'])} | {pct(b['observed'])} |"
         for b in t["reliability"]
@@ -145,7 +177,8 @@ discrimination below says something about the pipeline, not about real hospitals
 ## Data
 
 - Cohort: {c["admissions_total"]:,} inpatient admissions ({c["admissions_modeled"]:,} modeled after excluding {c["excluded_died"]} in-hospital
-  deaths and {c["excluded_censored"]} admissions censored by the end of the data) from {c["patients_modeled"]:,} patients.
+  deaths and {c["excluded_censored"]} admissions censored because their readmission window ends after the reference
+  date minus the maximum date shift) from {c["patients_modeled"]:,} patients.
 - Label: another inpatient admission 0 to 30 days after discharge; prevalence {pct(c["prevalence"])}.
 - Split by patient: {c["train"]:,} train / {c["val"]:,} validation / {c["test"]:,} test admissions ({c["test_patients"]:,} test patients).
   The validation fold is used for early stopping, model selection and isotonic calibration; the test fold is
@@ -162,7 +195,7 @@ discrimination below says something about the pipeline, not about real hospitals
 |---|---|---|---|---|---|---|---|---|
 {chr(10).join(rows)}
 
-Reliability of the champion after isotonic calibration (10 equal-width bins):
+{splits}Reliability of the champion after isotonic calibration (10 equal-width bins):
 
 | predicted | n | mean predicted | observed |
 |---|---|---|---|
@@ -232,7 +265,9 @@ def main() -> int:
             readme.write_text(text, encoding="utf-8")
             print("wrote README.md")
     if m and "--write" in sys.argv:
-        (ROOT / "docs" / "MODEL-CARD.md").write_text(model_card(m, f), encoding="utf-8")
+        (ROOT / "docs" / "MODEL-CARD.md").write_text(
+            model_card(m, f if f and f.get("model") != "fake" else None), encoding="utf-8"
+        )
         print("wrote docs/MODEL-CARD.md")
     if "--write" not in sys.argv:
         print(results_section(m, f, q))
